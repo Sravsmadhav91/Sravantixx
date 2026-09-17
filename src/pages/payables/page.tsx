@@ -37,17 +37,370 @@ import RecordPaymentDialog from "./_components/record-payment-dialog.tsx";
 import PurchaseOrderDialog from "./_components/purchase-order-dialog.tsx";
 import ConvertToInvoiceDialog from "./_components/convert-to-invoice-dialog.tsx";
 import ScanInvoiceDialog from "./_components/scan-invoice-dialog.tsx";
-import { migrationApiEnabled } from "@/lib/migration-api.ts";
+import {
+  migrationApiEnabled, createMigrationVendor,
+  type MigrationPurchaseOrder, type MigrationPurchaseInvoice, type MigrationApAgingRow,
+} from "@/lib/migration-api.ts";
 import { useMigrationFinance } from "@/hooks/use-migration-finance.ts";
-import { createMigrationVendor } from "@/lib/migration-api.ts";
 import { toast } from "sonner";
 
 function MigrationPayablesPage() {
-  const vendors = useMigrationFinance<any[]>("/api/payables/vendors");
+  const [tab, setTab] = useState<"orders" | "invoices" | "vendors" | "aging">("orders");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState(""); const [category, setCategory] = useState("contractor"); const [phone, setPhone] = useState(""); const [email, setEmail] = useState(""); const [gstin, setGstin] = useState(""); const [pan, setPan] = useState(""); const [address, setAddress] = useState(""); const [bankName, setBankName] = useState(""); const [bankAccount, setBankAccount] = useState(""); const [ifsc, setIfsc] = useState(""); const [notes, setNotes] = useState("");
   const submit = async () => { if (!name.trim()) { toast.error("Vendor name is required"); return; } try { await createMigrationVendor({ name, category, phone, email, gstin, pan, address, bankName, bankAccount, ifsc, notes }); toast.success("Vendor added"); setDialogOpen(false); window.location.reload(); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not add vendor"); } };
-  return <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-8"><PageHeader title="Accounts Payable" subtitle="Purchase orders, invoices, vendors, and payment tracking" breadcrumbs={[{ label: "Accounts Payable" }]} actions={<Button onClick={() => setDialogOpen(true)}><Plus className="size-4" />New Vendor</Button>} /><div className="grid grid-cols-2 gap-3 md:grid-cols-4"><div className="rounded-lg border bg-card px-4 py-3"><p className="text-xs text-muted-foreground">Active Vendors</p><p className="text-xl font-bold">{vendors?.filter((vendor) => vendor.isActive).length ?? 0}</p></div><div className="rounded-lg border bg-card px-4 py-3"><p className="text-xs text-muted-foreground">Read mode</p><p className="text-xl font-bold">Migration</p></div></div>{vendors === undefined ? <Skeleton className="h-48 w-full" /> : vendors.length === 0 ? <Empty><EmptyHeader><EmptyTitle>No vendors found</EmptyTitle></EmptyHeader></Empty> : <div className="rounded-lg border bg-card divide-y">{vendors.map((vendor) => <div key={vendor._id} className="flex items-center justify-between px-4 py-3"><div><p className="font-medium">{vendor.name}</p><p className="text-xs text-muted-foreground">{vendor.gstin || vendor.phone || "No contact details"}</p></div><Badge variant={vendor.isActive ? "default" : "secondary"}>{vendor.isActive ? "Active" : "Inactive"}</Badge></div>)}</div>}{dialogOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><div className="w-full max-w-lg space-y-3 rounded-lg bg-card p-6"><h2 className="text-xl font-semibold">New Vendor</h2><div className="flex gap-2 rounded-md bg-muted p-1 text-sm"><span className="rounded bg-background px-3 py-1">Basic Info</span><span className="px-3 py-1 text-muted-foreground">Address</span><span className="px-3 py-1 text-muted-foreground">Bank Details</span></div><div className="grid gap-3 sm:grid-cols-2"><Input className="sm:col-span-2" placeholder="Vendor name *" value={name} onChange={(e) => setName(e.target.value)} /><select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={category} onChange={(e) => setCategory(e.target.value)}><option value="contractor">Contractor</option><option value="material_supplier">Material Supplier</option><option value="service_provider">Service Provider</option></select><Input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} /><Input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} /><Input placeholder="GSTIN" value={gstin} onChange={(e) => setGstin(e.target.value)} /><Input placeholder="PAN" value={pan} onChange={(e) => setPan(e.target.value)} /><Input className="sm:col-span-2" placeholder="Address" value={address} onChange={(e) => setAddress(e.target.value)} /><Input placeholder="Bank name" value={bankName} onChange={(e) => setBankName(e.target.value)} /><Input placeholder="Bank account number" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} /><Input placeholder="IFSC" value={ifsc} onChange={(e) => setIfsc(e.target.value)} /></div><textarea className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} /><div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setDialogOpen(false)}>Cancel</Button><Button onClick={() => void submit()}>Create Vendor</Button></div></div></div>}</div>;
+
+  const vendors = useMigrationFinance<Doc<"vendors">[]>("/api/payables/vendors");
+  const purchaseOrders = useMigrationFinance<MigrationPurchaseOrder[]>("/api/purchase-orders");
+  const invoices = useMigrationFinance<MigrationPurchaseInvoice[]>("/api/payables/invoices");
+  const aging = useMigrationFinance<MigrationApAgingRow[]>("/api/payables/aging");
+
+  const filteredOrders = purchaseOrders?.filter((po) => {
+    if (statusFilter !== "all" && po.status !== statusFilter) return false;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return po.poNumber.toLowerCase().includes(q) || po.vendorName.toLowerCase().includes(q);
+  });
+
+  const filteredInvoices = invoices?.filter((inv) => {
+    if (statusFilter !== "all" && inv.status !== statusFilter) return false;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      inv.internalRef.toLowerCase().includes(q) ||
+      inv.invoiceNumber.toLowerCase().includes(q) ||
+      inv.vendorName.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredVendors = vendors?.filter((v) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return v.name.toLowerCase().includes(q) || (v.gstin ?? "").toLowerCase().includes(q);
+  });
+
+  const totalOutstanding = aging?.reduce((s, v) => s + v.total, 0) ?? 0;
+
+  return (
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-8">
+      <PageHeader
+        title="Accounts Payable"
+        subtitle="Purchase orders, invoices, vendors, and payment tracking"
+        breadcrumbs={[{ label: "Accounts Payable" }]}
+        actions={
+          <Button size="sm" variant="secondary" onClick={() => setDialogOpen(true)}>
+            <Plus className="size-4" /> New Vendor
+          </Button>
+        }
+      />
+
+      {/* Summary bar */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: "Total Outstanding", value: formatCompactInr(totalOutstanding), color: "text-foreground" },
+          { label: "Overdue (30d)", value: formatCompactInr(aging?.reduce((s, v) => s + v.days30, 0) ?? 0), color: "text-amber-600 dark:text-amber-400" },
+          { label: "Overdue (60d+)", value: formatCompactInr(aging?.reduce((s, v) => s + v.days60 + v.days90 + v.over90, 0) ?? 0), color: "text-red-600 dark:text-red-400" },
+          { label: "Active Vendors", value: String(vendors?.filter((v) => v.isActive).length ?? 0), color: "text-primary" },
+        ].map((stat) => (
+          <div key={stat.label} className="rounded-lg border bg-card px-4 py-3">
+            <p className="text-xs text-muted-foreground">{stat.label}</p>
+            <p className={cn("text-xl font-bold tabular-nums mt-0.5", stat.color)}>{stat.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <Tabs value={tab} onValueChange={(v) => { setTab(v as typeof tab); setStatusFilter("all"); }}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <TabsList>
+            <TabsTrigger value="orders">Purchase Orders</TabsTrigger>
+            <TabsTrigger value="invoices">Invoices</TabsTrigger>
+            <TabsTrigger value="vendors">Vendors</TabsTrigger>
+            <TabsTrigger value="aging">AP Aging</TabsTrigger>
+          </TabsList>
+          <div className="flex gap-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                placeholder={tab === "vendors" ? "Search vendors…" : tab === "orders" ? "Search POs…" : "Search invoices…"}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 h-8 w-52 text-sm"
+              />
+            </div>
+            {(tab === "invoices" || tab === "orders") && (
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="h-8 w-36 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  {tab === "orders" ? (
+                    <>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="sent">Sent</SelectItem>
+                      <SelectItem value="partially_received">Partially Received</SelectItem>
+                      <SelectItem value="received">Received</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        </div>
+
+        {/* PURCHASE ORDERS TAB */}
+        <TabsContent value="orders" className="mt-4">
+          {filteredOrders === undefined ? (
+            <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+          ) : filteredOrders.length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon"><FileText /></EmptyMedia>
+                <EmptyTitle>No purchase orders yet</EmptyTitle>
+                <EmptyDescription>Purchase orders created in Sravantix will appear here</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <div className="rounded-lg border bg-card overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs font-medium text-muted-foreground uppercase">
+                    <th className="px-3 py-2">PO No.</th>
+                    <th className="px-3 py-2">Vendor</th>
+                    <th className="px-3 py-2">Date</th>
+                    <th className="px-3 py-2">Delivery</th>
+                    <th className="px-3 py-2 text-right">Total</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Invoice</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredOrders.map((po) => (
+                    <tr key={po._id} className="hover:bg-muted/30">
+                      <td className="px-3 py-2 font-mono text-xs font-medium">{po.poNumber}</td>
+                      <td className="px-3 py-2 font-medium text-sm">{po.vendorName}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">{formatDate(po.date)}</td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                        {po.expectedDeliveryDate ? formatDate(po.expectedDeliveryDate) : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums text-xs font-semibold">{formatCompactInr(po.total)}</td>
+                      <td className="px-3 py-2">
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", PO_STATUS_COLORS[po.status])}>
+                          {PO_STATUS_LABELS[po.status]}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        {po.linkedInvoiceId ? (
+                          <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                            <CheckCircle className="size-3" /> Invoiced
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* INVOICES TAB */}
+        <TabsContent value="invoices" className="mt-4">
+          {filteredInvoices === undefined ? (
+            <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+          ) : filteredInvoices.length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon"><Building2 /></EmptyMedia>
+                <EmptyTitle>No invoices found</EmptyTitle>
+                <EmptyDescription>Purchase invoices created in Sravantix will appear here</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <div className="rounded-lg border bg-card overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs font-medium text-muted-foreground">
+                    <th className="px-3 py-2">Ref</th>
+                    <th className="px-3 py-2">Vendor</th>
+                    <th className="px-3 py-2">Invoice No.</th>
+                    <th className="px-3 py-2">Date</th>
+                    <th className="px-3 py-2">Due Date</th>
+                    <th className="px-3 py-2 text-right">Total</th>
+                    <th className="px-3 py-2 text-right">Outstanding</th>
+                    <th className="px-3 py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredInvoices.map((inv) => (
+                    <tr key={inv._id} className="hover:bg-muted/30">
+                      <td className="px-3 py-2 font-mono text-xs">{inv.internalRef}</td>
+                      <td className="px-3 py-2 font-medium">{inv.vendorName}</td>
+                      <td className="px-3 py-2 text-muted-foreground text-xs">{inv.invoiceNumber}</td>
+                      <td className="px-3 py-2 text-xs">{formatDate(inv.date)}</td>
+                      <td className={cn("px-3 py-2 text-xs", inv.dueDate && inv.dueDate < new Date().toISOString().slice(0, 10) && inv.status === "approved" ? "text-red-600 font-medium" : "text-muted-foreground")}>
+                        {inv.dueDate ? formatDate(inv.dueDate) : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums text-xs">{formatCompactInr(inv.total)}</td>
+                      <td className="px-3 py-2 text-right font-mono tabular-nums text-xs font-semibold">
+                        {inv.outstanding > 0.01 ? formatCompactInr(inv.outstanding) : "—"}
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", INVOICE_STATUS_COLORS[inv.status])}>
+                          {INVOICE_STATUS_LABELS[inv.status]}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* VENDORS TAB */}
+        <TabsContent value="vendors" className="mt-4">
+          {filteredVendors === undefined ? (
+            <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+          ) : filteredVendors.length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon"><Building2 /></EmptyMedia>
+                <EmptyTitle>No vendors yet</EmptyTitle>
+                <EmptyDescription>Add your first vendor to start tracking payables</EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button size="sm" onClick={() => setDialogOpen(true)}><Plus className="size-4" /> New Vendor</Button>
+              </EmptyContent>
+            </Empty>
+          ) : (
+            <div className="rounded-lg border bg-card divide-y">
+              {filteredVendors.map((vendor) => (
+                <div key={vendor._id} className="flex items-center gap-3 px-3 py-3 hover:bg-muted/30">
+                  <div className="size-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Building2 className="size-4 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{vendor.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {VENDOR_CATEGORY_LABELS[vendor.category] ?? vendor.category}
+                      {vendor.gstin && <> · {vendor.gstin}</>}
+                      {vendor.phone && <> · {vendor.phone}</>}
+                    </p>
+                  </div>
+                  {!vendor.isActive && <Badge variant="secondary" className="text-xs">Inactive</Badge>}
+                  {(vendor.category === "contractor" || vendor.category === "labour") && !vendor.pan && (
+                    <Badge className="gap-1 bg-amber-500/15 text-xs text-amber-600 dark:text-amber-400">
+                      <AlertTriangle className="size-3" /> Missing PAN
+                    </Badge>
+                  )}
+                  <Link to={`/payables/vendor/${vendor._id}`}>
+                    <Button size="icon" variant="ghost" className="h-7 w-7">
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* AGING TAB */}
+        <TabsContent value="aging" className="mt-4">
+          {aging === undefined ? (
+            <Skeleton className="h-64 w-full" />
+          ) : aging.length === 0 ? (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon"><CreditCard /></EmptyMedia>
+                <EmptyTitle>No outstanding payables</EmptyTitle>
+                <EmptyDescription>All invoices are paid or no invoices exist yet</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            <div className="rounded-lg border bg-card overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-right text-xs font-medium text-muted-foreground">
+                    <th className="px-3 py-2 text-left">Vendor</th>
+                    <th className="px-3 py-2">Current</th>
+                    <th className="px-3 py-2">1-30 days</th>
+                    <th className="px-3 py-2">31-60 days</th>
+                    <th className="px-3 py-2">61-90 days</th>
+                    <th className="px-3 py-2">90+ days</th>
+                    <th className="px-3 py-2 text-right font-semibold">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {aging.map((row) => (
+                    <tr key={row.vendorId} className="hover:bg-muted/30">
+                      <td className="px-3 py-2 font-medium">{row.name}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-xs">{row.current > 0 ? formatCompactInr(row.current) : "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-xs text-amber-600 dark:text-amber-400">{row.days30 > 0 ? formatCompactInr(row.days30) : "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-xs text-orange-600">{row.days60 > 0 ? formatCompactInr(row.days60) : "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-xs text-red-600">{row.days90 > 0 ? formatCompactInr(row.days90) : "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-xs text-red-700 font-semibold">{row.over90 > 0 ? formatCompactInr(row.over90) : "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatCompactInr(row.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t bg-muted/20 font-semibold text-sm">
+                    <td className="px-3 py-2">Total</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCompactInr(aging.reduce((s, r) => s + r.current, 0))}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCompactInr(aging.reduce((s, r) => s + r.days30, 0))}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCompactInr(aging.reduce((s, r) => s + r.days60, 0))}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCompactInr(aging.reduce((s, r) => s + r.days90, 0))}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCompactInr(aging.reduce((s, r) => s + r.over90, 0))}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatCompactInr(totalOutstanding)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {dialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg space-y-3 rounded-lg bg-card p-6">
+            <h2 className="text-xl font-semibold">New Vendor</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input className="sm:col-span-2" placeholder="Vendor name *" value={name} onChange={(e) => setName(e.target.value)} />
+              <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={category} onChange={(e) => setCategory(e.target.value)}>
+                {VENDOR_CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+              <Input placeholder="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <Input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input placeholder="GSTIN" value={gstin} onChange={(e) => setGstin(e.target.value)} />
+              <Input placeholder="PAN" value={pan} onChange={(e) => setPan(e.target.value)} />
+              <Input className="sm:col-span-2" placeholder="Address" value={address} onChange={(e) => setAddress(e.target.value)} />
+              <Input placeholder="Bank name" value={bankName} onChange={(e) => setBankName(e.target.value)} />
+              <Input placeholder="Bank account number" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} />
+              <Input placeholder="IFSC" value={ifsc} onChange={(e) => setIfsc(e.target.value)} />
+            </div>
+            <textarea className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setDialogOpen(false)}>Cancel</Button>
+              <Button onClick={() => void submit()}>Create Vendor</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function PayablesPage() {
