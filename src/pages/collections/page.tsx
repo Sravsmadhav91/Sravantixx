@@ -21,10 +21,6 @@ import CollectionsDashboard from "./_components/collections-dashboard.tsx";
 import { migrationApiEnabled } from "@/lib/migration-api.ts";
 import { useMigrationCollectionAlerts } from "@/hooks/use-migration-collection-alerts.ts";
 import { useMigrationBookings } from "@/hooks/use-migration-bookings.ts";
-import { useMigrationProjects } from "@/hooks/use-migration-projects.ts";
-import { useMigrationCollectionsDashboard } from "@/hooks/use-migration-collections-dashboard.ts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
-import { Input } from "@/components/ui/input.tsx";
 import { formatCompactInr } from "@/lib/real-estate.ts";
 
 const PAGE_SIZE = 20;
@@ -90,105 +86,13 @@ function BookingCard({ booking, hasOverdue }: { booking: BookingWithDetails; has
 
 function MigrationCollectionsPage() {
   const [filter, setFilter] = useState<"all" | "active" | "cancelled">("active");
-  const [projectId, setProjectId] = useState("all");
-  const [fromDate, setFromDate] = useState("2025-10-01");
-  const [toDate, setToDate] = useState(new Date().toISOString().slice(0, 10));
   const bookings = useMigrationBookings(filter);
   const alerts = useMigrationCollectionAlerts();
-  const projects = useMigrationProjects().projects;
-  const dashboard = useMigrationCollectionsDashboard({ projectId, fromDate, toDate });
-  const kpis = dashboard?.kpis;
   const overdueBookingIds = new Set<string>(alerts?.overdue.map((o) => o.bookingId as string) ?? []);
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-8 p-4 md:p-8">
-      <div>
-        <h1 className="font-serif text-3xl font-semibold">Collections Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Outstanding vs collected, overdue aging, and trends across all bookings.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-card p-3">
-        <select
-          className="h-8 rounded-md border border-input bg-background px-3 text-xs"
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
-        >
-          <option value="all">All projects</option>
-          {(projects ?? []).map((project) => (
-            <option key={project._id} value={project._id}>{project.name}</option>
-          ))}
-        </select>
-        <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="h-8 w-36 text-xs" />
-        <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="h-8 w-36 text-xs" />
-      </div>
-
-      {!kpis ? (
-        <Skeleton className="h-28 w-full" />
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {[
-            ["Agreement value", formatCompactInr(kpis.totalAgreementValue), "Across active bookings"],
-            ["Collected", formatCompactInr(kpis.totalCollected), `${kpis.collectionRate}% of agreement value`],
-            ["Outstanding", formatCompactInr(kpis.totalOutstanding), "Yet to be collected"],
-            ["Overdue", formatCompactInr(kpis.overdueAmount), `${kpis.overdueCount} instalment${kpis.overdueCount !== 1 ? "s" : ""}`],
-            ["Due within 7 days", formatCompactInr(kpis.upcomingAmount), `${kpis.upcomingCount} instalment${kpis.upcomingCount !== 1 ? "s" : ""}`],
-          ].map(([label, value, hint]) => (
-            <Card key={label}>
-              <CardContent className="space-y-2">
-                <p className="text-xs uppercase text-muted-foreground">{label}</p>
-                <p className="text-2xl font-semibold tabular-nums">{value}</p>
-                <p className="text-xs text-muted-foreground">{hint}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {dashboard && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <Card>
-            <CardHeader><CardTitle>Overdue aging</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {dashboard.aging.map((bucket) => (
-                <div key={bucket.label} className="flex justify-between rounded-md bg-muted/50 px-3 py-2 text-sm">
-                  <span>{bucket.label} ({bucket.count})</span>
-                  <strong>{formatCompactInr(bucket.amount)}</strong>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader><CardTitle>Collections trend</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {dashboard.trend.map((row) => (
-                <div key={row.sortKey} className="flex justify-between border-b py-2 text-sm">
-                  <span>{row.month}</span>
-                  <strong>{formatCompactInr(row.collectedAmount)}</strong>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {dashboard && (
-        <Card>
-          <CardHeader><CardTitle>Outstanding by project</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            {dashboard.byProject.map((project) => (
-              <div key={project.projectId} className="flex justify-between border-b py-2 text-sm">
-                <span>{project.name}</span>
-                <div>
-                  <strong>{formatCompactInr(project.collectedAmount)}</strong>
-                  <span className="ml-3 text-destructive">{formatCompactInr(project.outstanding)}</span>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      <CollectionsDashboard />
 
       <div className="space-y-1">
         <h2 className="font-serif text-2xl font-semibold tracking-tight">Bookings</h2>
