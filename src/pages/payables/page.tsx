@@ -11,6 +11,7 @@ import type { Doc, Id } from "@/convex/_generated/dataModel";
 import PageHeader from "@/components/page-header.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
+import { SearchableSelect } from "@/components/ui/searchable-select.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
@@ -183,13 +184,17 @@ function MigrationPayablesPage() {
                 </SelectContent>
               </Select>
             )}
-            <Select value={nameFilter} onValueChange={setNameFilter}>
-              <SelectTrigger className="h-8 w-44 text-sm"><SelectValue placeholder="All vendors" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All vendors</SelectItem>
-                {(vendors ?? []).map((vendor) => <SelectItem key={vendor._id} value={vendor.name}>{vendor.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={nameFilter === "all" ? "" : nameFilter}
+              onValueChange={(value) => setNameFilter(value || "all")}
+              options={(vendors ?? []).map((vendor) => ({ value: vendor.name, label: vendor.name }))}
+              placeholder="All vendors"
+              searchPlaceholder="Type vendor name…"
+              allowClear
+              clearLabel="All vendors"
+              size="sm"
+              triggerClassName="h-8 w-44 text-xs"
+            />
             {tab !== "aging" && (
               <Select value={dateFilter} onValueChange={(value) => setDateFilter(value as PayablesDateFilter)}>
                 <SelectTrigger className="h-8 w-32 text-sm"><SelectValue placeholder="All dates" /></SelectTrigger>
@@ -614,13 +619,17 @@ function PayablesInner() {
                 </SelectContent>
               </Select>
             )}
-            <Select value={nameFilter} onValueChange={setNameFilter}>
-              <SelectTrigger className="h-8 w-44 text-sm"><SelectValue placeholder="All vendors" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All vendors</SelectItem>
-                {(vendors ?? []).map((vendor) => <SelectItem key={vendor._id} value={vendor.name}>{vendor.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={nameFilter === "all" ? "" : nameFilter}
+              onValueChange={(value) => setNameFilter(value || "all")}
+              options={(vendors ?? []).map((vendor) => ({ value: vendor.name, label: vendor.name }))}
+              placeholder="All vendors"
+              searchPlaceholder="Type vendor name…"
+              allowClear
+              clearLabel="All vendors"
+              size="sm"
+              triggerClassName="h-8 w-44 text-xs"
+            />
             {tab !== "aging" && (
               <Select value={dateFilter} onValueChange={(value) => setDateFilter(value as PayablesDateFilter)}>
                 <SelectTrigger className="h-8 w-32 text-sm"><SelectValue placeholder="All dates" /></SelectTrigger>
