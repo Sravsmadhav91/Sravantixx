@@ -68,13 +68,68 @@ import DocumentPanel from "@/components/documents/document-panel.tsx";
 import MigrationDocumentPanel from "@/components/documents/migration-document-panel.tsx";
 import { migrationApiEnabled } from "@/lib/migration-api.ts";
 import { useMigrationStatement } from "@/hooks/use-migration-statement.ts";
+import type { MigrationStatement } from "@/lib/migration-api.ts";
 
 type Tab = "schedule" | "documents";
+type Statement = MigrationStatement;
+type UpdateBookingDateFn = (args: { bookingId: Id<"bookings">; bookingDate: string }) => Promise<unknown>;
+type SetRegistrationDateFn = (args: { bookingId: Id<"bookings">; registrationDate?: string }) => Promise<unknown>;
 
+const noopUpdateBookingDate: UpdateBookingDateFn = async () => undefined;
+const noopSetRegistrationDate: SetRegistrationDateFn = async () => undefined;
+
+// Dispatcher: only mount the data-fetching component matching the active mode, so
+// Convex hooks are never called when no ConvexProvider is mounted (migration mode).
 export default function CollectionDetailPage() {
   const params = useParams<{ bookingId: string }>();
   const bookingId = params.bookingId as Id<"bookings"> | undefined;
 
+  if (migrationApiEnabled) {
+    return <MigrationCollectionDetailData bookingId={bookingId} />;
+  }
+  return <ConvexCollectionDetailData bookingId={bookingId} />;
+}
+
+function ConvexCollectionDetailData({ bookingId }: { bookingId: Id<"bookings"> | undefined }) {
+  const updateBookingDate = useMutation(api.bookings.updateBookingDate);
+  const setRegistrationDate = useMutation(api.bookings.setRegistrationDate);
+  const stmt = useQuery(
+    api.payments.getStatement,
+    bookingId ? { bookingId } : "skip",
+  );
+  return (
+    <CollectionDetailPageBody
+      bookingId={bookingId}
+      stmt={stmt as unknown as Statement | undefined}
+      updateBookingDate={updateBookingDate}
+      setRegistrationDate={setRegistrationDate}
+    />
+  );
+}
+
+function MigrationCollectionDetailData({ bookingId }: { bookingId: Id<"bookings"> | undefined }) {
+  const stmt = useMigrationStatement(bookingId);
+  return (
+    <CollectionDetailPageBody
+      bookingId={bookingId}
+      stmt={stmt}
+      updateBookingDate={noopUpdateBookingDate}
+      setRegistrationDate={noopSetRegistrationDate}
+    />
+  );
+}
+
+function CollectionDetailPageBody({
+  bookingId,
+  stmt,
+  updateBookingDate,
+  setRegistrationDate,
+}: {
+  bookingId: Id<"bookings"> | undefined;
+  stmt: Statement | undefined;
+  updateBookingDate: UpdateBookingDateFn;
+  setRegistrationDate: SetRegistrationDateFn;
+}) {
   const [installmentDialogOpen, setInstallmentDialogOpen] = useState(false);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -84,16 +139,6 @@ export default function CollectionDetailPage() {
   const [editingRegistrationDate, setEditingRegistrationDate] = useState(false);
   const [newRegistrationDate, setNewRegistrationDate] = useState("");
   const [tab, setTab] = useState<Tab>("schedule");
-
-  const updateBookingDate = useMutation(api.bookings.updateBookingDate);
-  const setRegistrationDate = useMutation(api.bookings.setRegistrationDate);
-
-  const convexStmt = useQuery(
-    api.payments.getStatement,
-    bookingId ? { bookingId } : "skip",
-  );
-  const migrationStmt = useMigrationStatement(bookingId);
-  const stmt = migrationApiEnabled ? migrationStmt : convexStmt;
 
   if (!bookingId) {
     return (

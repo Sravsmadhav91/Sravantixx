@@ -17,23 +17,18 @@ type ReceiptRowProps = {
   pdfContext?: Omit<ReceiptData, "receiptNumber" | "receiptDate" | "amount" | "paymentMode" | "chequeRef" | "notes">;
 };
 
-export default function ReceiptRow({ receipt, pdfContext, readOnly = false }: ReceiptRowProps) {
-  const removeReceipt = useMutation(api.payments.removeReceipt);
+// Only mount the mutation-calling variant outside migration mode, since there is
+// no ConvexProvider (and thus no Convex client) when readOnly/migration mode is active.
+export default function ReceiptRow(props: ReceiptRowProps) {
+  return props.readOnly ? (
+    <ReadOnlyReceiptRow {...props} />
+  ) : (
+    <EditableReceiptRow {...props} />
+  );
+}
 
-  const handleDelete = async () => {
-    try {
-      await removeReceipt({ receiptId: receipt._id });
-      toast.success("Receipt deleted");
-    } catch (error) {
-      toast.error(
-        error instanceof ConvexError
-          ? (error.data as { message: string }).message
-          : "Could not delete receipt",
-      );
-    }
-  };
-
-  const handleDownload = () => {
+function receiptDownloadHandler(receipt: Doc<"receipts">, pdfContext?: ReceiptRowProps["pdfContext"]) {
+  return () => {
     if (!pdfContext) return;
     downloadReceipt({
       receiptNumber: receipt._id.slice(-8).toUpperCase(),
@@ -45,6 +40,18 @@ export default function ReceiptRow({ receipt, pdfContext, readOnly = false }: Re
       ...pdfContext,
     });
   };
+}
+
+function ReceiptRowContent({
+  receipt,
+  pdfContext,
+  onDelete,
+}: {
+  receipt: Doc<"receipts">;
+  pdfContext?: ReceiptRowProps["pdfContext"];
+  onDelete?: () => void;
+}) {
+  const handleDownload = receiptDownloadHandler(receipt, pdfContext);
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
@@ -85,16 +92,47 @@ export default function ReceiptRow({ receipt, pdfContext, readOnly = false }: Re
             <Download className="size-4" />
           </Button>
         )}
-        {!readOnly && <Button
-          variant="ghost"
-          size="icon"
-          className="text-muted-foreground hover:text-destructive"
-          onClick={() => void handleDelete()}
-          aria-label="Delete receipt"
-        >
-          <Trash2 className="size-4" />
-        </Button>}
+        {onDelete && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={onDelete}
+            aria-label="Delete receipt"
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        )}
       </div>
     </div>
+  );
+}
+
+function ReadOnlyReceiptRow({ receipt, pdfContext }: ReceiptRowProps) {
+  return <ReceiptRowContent receipt={receipt} pdfContext={pdfContext} />;
+}
+
+function EditableReceiptRow({ receipt, pdfContext }: ReceiptRowProps) {
+  const removeReceipt = useMutation(api.payments.removeReceipt);
+
+  const handleDelete = async () => {
+    try {
+      await removeReceipt({ receiptId: receipt._id });
+      toast.success("Receipt deleted");
+    } catch (error) {
+      toast.error(
+        error instanceof ConvexError
+          ? (error.data as { message: string }).message
+          : "Could not delete receipt",
+      );
+    }
+  };
+
+  return (
+    <ReceiptRowContent
+      receipt={receipt}
+      pdfContext={pdfContext}
+      onDelete={() => void handleDelete()}
+    />
   );
 }

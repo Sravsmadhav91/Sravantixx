@@ -30,11 +30,62 @@ type InstallmentRowProps = {
   readOnly?: boolean;
 };
 
-export default function InstallmentRow({
+// Only mount the mutation-calling variant outside migration mode, since there is
+// no ConvexProvider (and thus no Convex client) when readOnly/migration mode is active.
+export default function InstallmentRow(props: InstallmentRowProps) {
+  return props.readOnly ? (
+    <ReadOnlyInstallmentRow {...props} />
+  ) : (
+    <EditableInstallmentRow {...props} />
+  );
+}
+
+function ReadOnlyInstallmentRow({ installment }: InstallmentRowProps) {
+  const isOverdue =
+    installment.status !== "paid" &&
+    installment.dueDate !== undefined &&
+    installment.dueDate < new Date().toISOString();
+
+  return (
+    <tr className="border-b border-border last:border-0">
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-1.5">
+          {isOverdue && (
+            <AlertTriangle className="size-3.5 shrink-0 text-destructive" />
+          )}
+          <span className={cn("font-medium", isOverdue && "text-destructive")}>
+            {installment.milestone}
+          </span>
+        </div>
+        {installment.notes && (
+          <p className="text-xs text-muted-foreground">{installment.notes}</p>
+        )}
+      </td>
+      <td className="px-4 py-3 text-sm text-muted-foreground tabular-nums">
+        {installment.dueDate ? formatDate(installment.dueDate) : "—"}
+      </td>
+      <td className="px-4 py-3 text-right font-semibold tabular-nums">
+        {formatCompactInr(installment.amount)}
+      </td>
+      <td className="px-4 py-3">
+        <span
+          className={cn(
+            "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
+            INSTALLMENT_STATUS_CLASSES[installment.status],
+          )}
+        >
+          {INSTALLMENT_STATUS_LABELS[installment.status]}
+        </span>
+      </td>
+      <td className="px-4 py-3 text-right" />
+    </tr>
+  );
+}
+
+function EditableInstallmentRow({
   installment,
   bookingId,
   onRecordReceipt,
-  readOnly = false,
 }: InstallmentRowProps) {
   const [editOpen, setEditOpen] = useState(false);
   const removeInst = useMutation(api.payments.removeInstallment);
@@ -130,7 +181,7 @@ export default function InstallmentRow({
           </span>
         </td>
         <td className="px-4 py-3 text-right">
-          {!readOnly && <DropdownMenu>
+          <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
                 <MoreHorizontal className="size-4" />
@@ -177,7 +228,7 @@ export default function InstallmentRow({
                 Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>}
+          </DropdownMenu>
         </td>
       </tr>
 
