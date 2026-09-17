@@ -316,7 +316,7 @@ function CollectionDetailPageBody({
           { label: stmt ? `${stmt.unit?.projectName ?? "—"} · ${stmt.unit?.number ?? "—"}` : "…" },
         ]}
         actions={
-          !migrationApiEnabled && stmt && (
+          stmt && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="secondary" size="sm">
@@ -349,14 +349,18 @@ function CollectionDetailPageBody({
                   <FileText className="size-4 text-muted-foreground" />
                   {generatingAgreement ? "Generating…" : "Sale Agreement (.docx)"}
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => setEmailDialogOpen(true)}
-                  className="cursor-pointer"
-                >
-                  <Mail className="size-4 text-muted-foreground" />
-                  Send email to buyer
-                </DropdownMenuItem>
+                {!migrationApiEnabled && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setEmailDialogOpen(true)}
+                      className="cursor-pointer"
+                    >
+                      <Mail className="size-4 text-muted-foreground" />
+                      Send email to buyer
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )
