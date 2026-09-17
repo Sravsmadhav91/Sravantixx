@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import { Input } from "@/components/ui/input.tsx";
 
-type LedgerImportResult = { accountsCreated: number; vendorsCreated: number; skipped: number; unmapped: Array<{ name: string; parent: string }> };
+type LedgerImportResult = { accountsCreated: number; openingBalancesApplied: number; vendorsCreated: number; skipped: number; unmapped: Array<{ name: string; parent: string }> };
 type VoucherImportResult = { journalEntriesCreated: number; purchaseInvoicesCreated: number; skipped: number; skippedDetails: Array<{ voucherNumber: string; reason: string }> };
 
 function todayIso() {
@@ -109,13 +109,13 @@ export default function MigrationTallyPanel() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2 rounded-lg border p-4">
               <p className="text-sm font-medium">Import ledgers</p>
-              <p className="text-xs text-muted-foreground">Pulls all ledgers for the selected company and creates matching accounts/vendors.</p>
+              <p className="text-xs text-muted-foreground">Pulls all ledgers, applies their opening balances, and creates matching accounts/vendors.</p>
               <Button size="sm" onClick={() => void importLedgers()} disabled={ledgerLoading}>
                 {ledgerLoading ? <><Loader2 className="size-4 animate-spin" />Importing...</> : "Import Ledgers from Tally"}
               </Button>
               {ledgerResult && (
                 <div className="rounded-md border border-primary/30 bg-primary/5 p-2 text-xs">
-                  <div className="flex items-center gap-2 font-medium"><CheckCircle2 className="size-4 text-primary" />{ledgerResult.accountsCreated} accounts, {ledgerResult.vendorsCreated} vendors created ({ledgerResult.skipped} already existed)</div>
+                  <div className="flex items-center gap-2 font-medium"><CheckCircle2 className="size-4 text-primary" />{ledgerResult.accountsCreated} accounts, {ledgerResult.vendorsCreated} vendors created; {ledgerResult.openingBalancesApplied} opening balances applied ({ledgerResult.skipped} already existed)</div>
                   {ledgerResult.unmapped.length > 0 && <p className="mt-1 text-muted-foreground">{ledgerResult.unmapped.length} ledgers used an unrecognised group and were filed under indirect expenses - review them in Chart of Accounts.</p>}
                 </div>
               )}

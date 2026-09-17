@@ -768,7 +768,7 @@ export async function previewMigrationTallyXml(kind: "ledgers" | "vouchers", xml
 export async function importMigrationTallyLedgers(company: string) {
   const response = await fetch(`${apiUrl}/api/tally/import-ledgers`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ company }) });
   if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Tally ledger import failed (${response.status})`); }
-  return response.json() as Promise<{ accountsCreated: number; vendorsCreated: number; skipped: number; unmapped: Array<{ name: string; parent: string }> }>;
+  return response.json() as Promise<{ accountsCreated: number; openingBalancesApplied: number; vendorsCreated: number; skipped: number; unmapped: Array<{ name: string; parent: string }> }>;
 }
 
 export async function importMigrationTallyVouchers(company: string, fromDate: string, toDate: string) {
