@@ -1,6 +1,7 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api.js";
-import { migrationApiEnabled } from "@/lib/migration-api.ts";
+import { migrationApiEnabled, migrationGet } from "@/lib/migration-api.ts";
 
 export type UserRole = "owner" | "staff" | "accountant" | "sales" | "site_engineer";
 
@@ -14,8 +15,15 @@ const SCOPED_ROLE_MODULES: Record<"accountant" | "sales" | "site_engineer", stri
 /** Returns the current user's role and helpers to check access. */
 export function useRole() {
   const data = migrationApiEnabled ? undefined : useQuery(api.team.getMyRole);
-  const role: UserRole = (data?.role ?? "owner") as UserRole;
-  const isOwner = migrationApiEnabled ? true : data === undefined ? undefined : role === "owner";
+  const [migrationRole, setMigrationRole] = useState<UserRole | undefined>();
+  useEffect(() => {
+    if (!migrationApiEnabled) return;
+    let active = true;
+    migrationGet<{ role: UserRole }>("/api/auth/me").then((result) => active && setMigrationRole(result.role)).catch(() => active && setMigrationRole("owner"));
+    return () => { active = false; };
+  }, []);
+  const role: UserRole = (migrationRole ?? data?.role ?? "owner") as UserRole;
+  const isOwner = migrationApiEnabled ? role === "owner" : data === undefined ? undefined : role === "owner";
   const isStaff = migrationApiEnabled ? false : data === undefined ? undefined : role === "staff";
   const isScoped = migrationApiEnabled ? false : data === undefined ? undefined : role in SCOPED_ROLE_MODULES;
 
@@ -31,6 +39,6 @@ export function useRole() {
     isStaff,
     isScoped,
     canAccess,
-    isLoading: migrationApiEnabled ? false : data === undefined,
+    isLoading: migrationApiEnabled ? migrationRole === undefined : data === undefined,
   };
 }

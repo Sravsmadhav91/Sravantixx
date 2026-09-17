@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { SearchableSelect } from "@/components/ui/searchable-select.tsx";
+import MigrationQuickCreateBuyerDialog from "@/pages/banking/_components/migration-quick-create-buyer-dialog.tsx";
 
 type MigrationUnit = { _id: string; number: string; block?: string; floor?: number; configuration?: string; superBuiltUpAreaSqft?: number; areaSqft?: number; carpetAreaSqft?: number; balconyAreaSqft?: number; undividedShare?: string; ratePerSqft?: number; price?: number; status: string; facing?: string; buyerId?: string };
 
@@ -24,6 +25,7 @@ export default function MigrationUnitFormDialog({ open, onOpenChange, projectId,
   const [buyerId, setBuyerId] = useState("");
   const [buyers, setBuyers] = useState<Array<{ _id: string; name: string; phone?: string }>>([]);
   const [saving, setSaving] = useState(false);
+  const [createBuyerOpen, setCreateBuyerOpen] = useState(false);
   const price = Math.round((Number(area) || 0) * (Number(rate) || 0));
 
   useEffect(() => {
@@ -65,6 +67,6 @@ export default function MigrationUnitFormDialog({ open, onOpenChange, projectId,
     <div><Input type="number" placeholder="Rate per sq ft *" value={rate} onChange={(e) => setRate(e.target.value)} /><p className="mt-1 text-xs text-muted-foreground">Base price (SBA × rate): ₹{price.toLocaleString("en-IN")}</p></div>
     <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={status} onChange={(e) => setStatus(e.target.value)}><option value="available">Available</option><option value="on_hold">On hold</option><option value="booked">Booked</option><option value="sold">Sold</option></select>
     <Input placeholder="Facing" value={facing} onChange={(e) => setFacing(e.target.value)} />
-    {status === "booked" && <div className="sm:col-span-2"><p className="mb-1.5 text-sm font-medium">Linked buyer *</p><SearchableSelect options={buyers.map((buyer) => ({ value: buyer._id, label: `${buyer.name}${buyer.phone ? ` · ${buyer.phone}` : ""}` }))} value={buyerId} onValueChange={setBuyerId} placeholder="Search buyer..." searchPlaceholder="Search buyers..." /></div>}
+    {status === "booked" && <div className="sm:col-span-2"><p className="mb-1.5 text-sm font-medium">Linked buyer *</p><SearchableSelect options={buyers.map((buyer) => ({ value: buyer._id, label: `${buyer.name}${buyer.phone ? ` · ${buyer.phone}` : ""}` }))} value={buyerId} onValueChange={setBuyerId} placeholder="Search buyer..." searchPlaceholder="Search buyers..." onCreateNew={() => setCreateBuyerOpen(true)} createNewLabel="+ Create new buyer" /><MigrationQuickCreateBuyerDialog open={createBuyerOpen} onOpenChange={setCreateBuyerOpen} onCreated={(buyer) => { setBuyers((current) => [...current, buyer]); setBuyerId(buyer._id); }} /></div>}
   </div></div><DialogFooter className="border-t bg-background pt-3"><Button variant="secondary" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={() => void submit()} disabled={saving || (status === "booked" && !buyerId)}>{saving ? "Saving..." : editing ? "Save changes" : "Add unit"}</Button></DialogFooter></DialogContent></Dialog>;
 }

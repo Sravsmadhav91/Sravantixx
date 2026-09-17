@@ -90,11 +90,22 @@ export async function migrationGet<T>(path: string): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, {
     headers: await migrationHeaders(),
   });
-  if (!response.ok) {
+     if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new Error(body.error || `Migration API request failed (${response.status})`);
   }
   return response.json();
+}
+
+export async function getMigrationTallyCompanies() {
+  const response = await fetch(`${apiUrl}/api/tally/companies`, { headers: await migrationHeaders() });
+  if (!response.ok) throw new Error(`Tally request failed (${response.status})`);
+  const xml = await response.text();
+  // Tally returns company names either as a NAME attribute (<COMPANY NAME="...">) or a child <NAME> tag.
+  const attributeNames = [...xml.matchAll(/<COMPANY\s[^>]*\bNAME="([^"]*)"/gi)].map((match) => match[1].trim());
+  const childTagNames = [...xml.matchAll(/<NAME>([^<]+)<\/NAME>/gi)].map((match) => match[1].trim());
+  const companies = [...attributeNames, ...childTagNames].filter(Boolean);
+  return { xml, companies: [...new Set(companies)] };
 }
 
 export function getMigrationProject(projectId: string) {
@@ -473,6 +484,16 @@ export async function createMigrationVendor(input: Record<string, unknown>) {
   return response.json();
 }
 
+export async function importMigrationImsInvoices(rows: Record<string, unknown>[]) {
+  const response = await fetch(`${apiUrl}/api/payables/import-ims`, {
+    method: "POST",
+    headers: { ...await migrationHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ rows }),
+  });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json() as Promise<{ imported: number; skippedDuplicates: number; vendorsCreated: number; vendorsMatched: number }>;
+}
+
 export async function createMigrationJournalEntry(input: Record<string, unknown>) {
   const response = await fetch(`${apiUrl}/api/accounting/journal-entries`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
   if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
@@ -530,7 +551,7 @@ export async function deleteMigrationBankStatement(statementId: string) {
   return response.status === 204 ? null : response.json();
 }
 
-export async function matchMigrationBankTransaction(transactionId: string, input: { entityType: "vendor" | "contract" | "labourer" | "employee" | "account"; entityId: string }) {
+export async function matchMigrationBankTransaction(transactionId: string, input: { entityType: "buyer" | "vendor" | "contract" | "labourer" | "employee" | "account"; entityId: string; tdsEnabled?: boolean; tdsSection?: string; tdsRate?: number; gstRegistered?: boolean; gstRate?: number }) {
   const response = await fetch(`${apiUrl}/api/banking/transactions/${encodeURIComponent(transactionId)}/match`, {
     method: "PATCH",
     headers: { ...await migrationHeaders(), "Content-Type": "application/json" },
@@ -584,4 +605,156 @@ export async function createMigrationVoucher(input: Record<string, unknown>) {
   const response = await fetch(`${apiUrl}/api/accounting/vouchers`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
   if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
   return response.json();
+}
+
+export async function createMigrationConstructionStage(projectId: string, input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/projects/${encodeURIComponent(projectId)}/construction/stages`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function createMigrationConstructionExpense(projectId: string, input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/projects/${encodeURIComponent(projectId)}/construction/expenses`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function saveMigrationTdsSettings(input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/tds/settings`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function createMigrationTdsDeduction(input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/tds/deductions`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function createMigrationTdsChallan(input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/tds/challans`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export function getMigrationTdsReturnSummary(quarter: string, returnType: string) {
+  return migrationGet<{ rows: any[]; deducteeCount: number; totalGross: number; totalTds: number; challanCount: number }>(`/api/tds/returns/summary?quarter=${encodeURIComponent(quarter)}&returnType=${encodeURIComponent(returnType)}`);
+}
+
+export async function updateMigrationLabourer(labourerId: string, input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/labourers/${encodeURIComponent(labourerId)}`, { method: "PATCH", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function deleteMigrationBankTransaction(transactionId: string) {
+  const response = await fetch(`${apiUrl}/api/banking/transactions/${encodeURIComponent(transactionId)}`, { method: "DELETE", headers: await migrationHeaders() });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.status === 204 ? null : response.json();
+}
+
+export async function convertMigrationMaterialRequest(requestId: string, input: { vendorId: string; rates: number[]; expectedDeliveryDate?: string }) {
+  const response = await fetch(`${apiUrl}/api/material-requests/${encodeURIComponent(requestId)}/convert-to-po`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function listMigrationTdsDeductees() {
+  return migrationGet<any[]>("/api/tds/deductees");
+}
+
+export async function importMigrationTdsDeductees(rows: Record<string, unknown>[]) {
+  const response = await fetch(`${apiUrl}/api/tds/deductees/import`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ rows }) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json() as Promise<{ imported: number; updated: number; skipped: number }>;
+}
+
+export async function updateMigrationTdsDeductee(deducteeId: string, input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/tds/deductees/${encodeURIComponent(deducteeId)}`, { method: "PATCH", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function deleteMigrationTdsDeductee(deducteeId: string) {
+  const response = await fetch(`${apiUrl}/api/tds/deductees/${encodeURIComponent(deducteeId)}`, { method: "DELETE", headers: await migrationHeaders() });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.status === 204 ? null : response.json();
+}
+
+export async function createMigrationTdsDeductee(input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/tds/deductees`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function deleteMigrationAccount(accountId: string) {
+  const response = await fetch(`${apiUrl}/api/accounting/accounts/${encodeURIComponent(accountId)}`, { method: "DELETE", headers: await migrationHeaders() });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.status === 204 ? null : response.json();
+}
+
+export async function updateMigrationJournalEntry(entryId: string, input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/accounting/journal-entries/${encodeURIComponent(entryId)}`, { method: "PATCH", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function deleteMigrationJournalEntry(entryId: string) {
+  const response = await fetch(`${apiUrl}/api/accounting/journal-entries/${encodeURIComponent(entryId)}`, { method: "DELETE", headers: await migrationHeaders() });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.status === 204 ? null : response.json();
+}
+
+export async function updateMigrationSubcontract(subcontractId: string, input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/subcontracts/${encodeURIComponent(subcontractId)}`, { method: "PATCH", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function updateMigrationConstructionStage(projectId: string, stageId: string, input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/projects/${encodeURIComponent(projectId)}/construction/stages/${encodeURIComponent(stageId)}`, { method: "PATCH", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function deleteMigrationConstructionStage(projectId: string, stageId: string) {
+  const response = await fetch(`${apiUrl}/api/projects/${encodeURIComponent(projectId)}/construction/stages/${encodeURIComponent(stageId)}`, { method: "DELETE", headers: await migrationHeaders() });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.status === 204 ? null : response.json();
+}
+
+export async function updateMigrationConstructionExpense(projectId: string, expenseId: string, input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/projects/${encodeURIComponent(projectId)}/construction/expenses/${encodeURIComponent(expenseId)}`, { method: "PATCH", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function deleteMigrationConstructionExpense(projectId: string, expenseId: string) {
+  const response = await fetch(`${apiUrl}/api/projects/${encodeURIComponent(projectId)}/construction/expenses/${encodeURIComponent(expenseId)}`, { method: "DELETE", headers: await migrationHeaders() });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.status === 204 ? null : response.json();
+}
+
+export async function importMigrationPurchaseInvoices(rows: Record<string, unknown>[]) {
+  const response = await fetch(`${apiUrl}/api/payables/import-invoices`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ rows }) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json() as Promise<{ imported: number; vendorsCreated: number }>;
+}
+
+export async function previewMigrationTallyXml(kind: "ledgers" | "vouchers", xml: string) {
+  const response = await fetch(`${apiUrl}/api/tally/preview`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ kind, xml }) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Tally import request failed (${response.status})`); }
+  return response.json() as Promise<{ kind: string; records: number; preview: string[] }>;
+}
+
+export async function importMigrationTallyLedgers(company: string) {
+  const response = await fetch(`${apiUrl}/api/tally/import-ledgers`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ company }) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Tally ledger import failed (${response.status})`); }
+  return response.json() as Promise<{ accountsCreated: number; vendorsCreated: number; skipped: number; unmapped: Array<{ name: string; parent: string }> }>;
+}
+
+export async function importMigrationTallyVouchers(company: string, fromDate: string, toDate: string) {
+  const response = await fetch(`${apiUrl}/api/tally/import-vouchers`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ company, fromDate, toDate }) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Tally voucher import failed (${response.status})`); }
+  return response.json() as Promise<{ journalEntriesCreated: number; purchaseInvoicesCreated: number; skipped: number; skippedDetails: Array<{ voucherNumber: string; reason: string }> }>;
 }

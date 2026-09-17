@@ -26,7 +26,10 @@ import { Skeleton } from "@/components/ui/skeleton.tsx";
 
 function MigrationImportPage() {
   const tables = useMigrationFinance<string[]>("/api/tables");
-  return <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-8"><h1 className="font-serif text-3xl font-semibold">Bulk Import</h1><p className="text-sm text-muted-foreground">Imported data tables available in the PostgreSQL migration store.</p>{tables === undefined ? <Skeleton className="h-32 w-full" /> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{tables.map((table) => <div key={table} className="rounded-lg border bg-card p-4 font-medium">{table}</div>)}</div>}</div>;
+  const [tab, setTab] = useState("flat_receipts");
+  const accounting = [["scan_invoice", "Scan Invoice (AI)"], ["ims_invoices", "GST Portal IMS — Vendor Purchases"], ["tally", "▥ Tally Import"], ["bank_statement", "🏛 Bank Statement"], ["invoices", "▣ Purchase Invoices"], ["flat_receipts", "▣ Receipts by Flat No."]];
+  const crm = [["buyers", "♙ Buyers"], ["units", "▦ Units"], ["leads", "⌁ Leads"]];
+  return <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-8"><div><h1 className="font-serif text-3xl font-semibold">Bulk Import</h1><p className="text-sm text-muted-foreground">Import from any file format — upload your own spreadsheet and map the columns.</p></div><div className="space-y-3"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Accounting</p><div className="flex flex-wrap gap-2">{accounting.map(([value, label]) => <Button key={value} variant={tab === value ? "default" : "secondary"} onClick={() => setTab(value)}>{label}</Button>)}</div><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CRM</p><div className="flex flex-wrap gap-2">{crm.map(([value, label]) => <Button key={value} variant={tab === value ? "default" : "secondary"} onClick={() => setTab(value)}>{label}</Button>)}</div></div>{tab === "flat_receipts" ? <MigrationFlatReceiptsPanel /> : tab === "ims_invoices" ? <MigrationImsInvoicesPanel /> : tab === "scan_invoice" ? <MigrationScanInvoicePanel /> : tab === "buyers" || tab === "leads" ? <MigrationCrmImportPanel kind={tab} /> : tab === "units" ? <MigrationUnitImportPanel /> : tab === "invoices" ? <MigrationInvoiceImportPanel /> : tab === "tally" ? <MigrationTallyPanel /> : <Card><CardHeader><CardTitle>{accounting.concat(crm).find(([value]) => value === tab)?.[1] ?? "Import"}</CardTitle></CardHeader><CardContent>{tables === undefined ? <Skeleton className="h-32 w-full" /> : <p className="text-sm text-muted-foreground">Available migration tables: {tables.length}. This importer is being connected to the independent backend.</p>}</CardContent></Card>}</div>;
 }
 import type { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button.tsx";
@@ -68,6 +71,12 @@ import ScanInvoiceDialog from "../payables/_components/scan-invoice-dialog.tsx";
 import TallyConnectionPanel from "./_components/tally-connection-panel.tsx";
 import FlatReceiptsImporter from "./_components/flat-receipts-panel.tsx";
 import ImsInvoicesImporter from "./_components/ims-invoices-panel.tsx";
+import MigrationFlatReceiptsPanel from "./_components/migration-flat-receipts-panel.tsx";
+import MigrationCrmImportPanel from "./_components/migration-crm-import-panel.tsx";
+import MigrationUnitImportPanel from "./_components/migration-unit-import-panel.tsx";
+import MigrationInvoiceImportPanel from "./_components/migration-invoice-import-panel.tsx";
+import MigrationTallyPanel from "./_components/migration-tally-panel.tsx";
+import { MigrationImsInvoicesPanel, MigrationScanInvoicePanel } from "./_components/migration-accounting-panels.tsx";
 
 // ── Field definitions ──────────────────────────────────────────────────────
 
@@ -1084,3 +1093,6 @@ export default function ImportPage() {
     </div>
   );
 }
+
+
+

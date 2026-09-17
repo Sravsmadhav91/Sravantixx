@@ -18,36 +18,8 @@ services:
       - key: VITE_SUPABASE_URL
         sync: false
       - key: VITE_SUPABASE_ANON_KEY
-        sync: falseservices:
-  - type: web
-    name: sravantix-frontend
-    runtime: static
-    buildCommand: corepack pnpm install --frozen-lockfile && corepack pnpm build
-    staticPublishPath: ./dist
+        sync: false
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
-    envVars:
-      - key: VITE_CONVEX_URL
-        sync: false
-      - key: VITE_HERCULES_OIDC_AUTHORITY
-        sync: false
-      - key: VITE_HERCULES_OIDC_CLIENT_ID
-        sync: false
-      - key: VITE_HERCULES_OIDC_PROMPT
-        value: select_account
-      - key: VITE_HERCULES_OIDC_RESPONSE_TYPE
-        value: code
-      - key: VITE_HERCULES_OIDC_SCOPE
-        value: openid profile email offline_access
-      - key: VITE_HERCULES_OIDC_REDIRECT_URI
-        sync: false
-      - key: VITE_MIGRATION_API
-        value: "false"
-      - key: VITE_MIGRATION_API_URL
-        sync: false
-      - key: VITE_SUPABASE_URL
-        sync: false
-      - key: VITE_SUPABASE_ANON_KEY
-        sync: false

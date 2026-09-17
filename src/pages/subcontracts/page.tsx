@@ -46,22 +46,32 @@ import MigrationSubcontractDialog from "./_components/migration-subcontract-dial
 
 function MigrationSubcontractsPage() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingContract, setEditingContract] = useState<any | null>(null);
   return (
     <>
-      <MigrationSubcontractsContent />
+      <MigrationSubcontractsContent onEdit={(contract) => setEditingContract(contract)} />
       <Button className="fixed bottom-6 right-6 z-20 shadow-lg" onClick={() => setCreateOpen(true)}>
         <Plus className="size-4" /> New subcontract
       </Button>
-      <MigrationSubcontractDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <MigrationSubcontractDialog open={createOpen || !!editingContract} onOpenChange={(open) => { if (!open) { setCreateOpen(false); setEditingContract(null); } }} editing={editingContract} />
     </>
   );
 }
 
-function MigrationSubcontractsContent() {
+/*
+function MigrationSubcontractsContent({ onEdit }: { onEdit: (contract: any) => void }) {
   const { contracts, error } = useMigrationSubcontracts();
   if (error) return <div className="p-8 text-sm text-destructive">{error.message}</div>;
   if (contracts === undefined) return <div className="mx-auto w-full max-w-4xl space-y-4 p-4 md:p-8"><Skeleton className="h-20 w-full" /><Skeleton className="h-40 w-full" /></div>;
-  return <div className="mx-auto w-full max-w-4xl space-y-6 p-4 md:p-8"><div className="flex flex-wrap items-end justify-between gap-3"><div className="space-y-1"><h1 className="font-serif text-3xl font-semibold tracking-tight">Subcontracts</h1><p className="text-sm text-muted-foreground">Track total contract value, payments made, and balance due per subcontractor.</p></div></div>{contracts.length === 0 ? <Empty><EmptyHeader><EmptyMedia variant="icon"><FileSignature /></EmptyMedia><EmptyTitle>No subcontracts yet</EmptyTitle><EmptyDescription>Record a subcontractor's agreed contract value to start tracking payments.</EmptyDescription></EmptyHeader></Empty> : <div className="space-y-2">{contracts.map((c) => <div key={c._id} className="rounded-lg border border-border bg-card px-4 py-3"><div className="flex flex-wrap items-start justify-between gap-3"><button type="button" className="min-w-0 flex-1 space-y-1 text-left"><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{c.title}</span>{!c.isActive && <Badge variant="secondary" className="text-[10px]">Inactive</Badge>}{!c.vendorPan && <Badge className="gap-1 bg-amber-500/15 text-[10px] text-amber-600 dark:text-amber-400"><AlertTriangle className="size-3" /> Vendor missing PAN</Badge>}</div><p className="text-xs text-muted-foreground">{c.vendorName} · {c.projectName}</p><div className="flex items-center gap-2 pt-1"><div className="h-1.5 w-32 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary" style={{ width: `${c.contractValue > 0 ? Math.min(100, (c.paidAmount / c.contractValue) * 100) : 0}%` }} /></div><span className="text-[11px] text-muted-foreground">{formatCompactInr(c.paidAmount)} of {formatCompactInr(c.contractValue)} paid</span></div></button><div className="text-right"><p className="text-xs text-muted-foreground">Balance</p><p className={cn("font-mono text-sm font-semibold tabular-nums", c.balance > 0.01 ? "text-amber-600" : "text-green-600")}>{formatCompactInr(c.balance)}</p></div></div></div>)}</div>}</div>;
+  return <div className="mx-auto w-full max-w-4xl space-y-6 p-4 md:p-8"><div className="flex flex-wrap items-end justify-between gap-3"><div className="space-y-1"><h1 className="font-serif text-3xl font-semibold tracking-tight">Subcontracts</h1><p className="text-sm text-muted-foreground">Track total contract value, payments made, and balance due per subcontractor.</p></div></div>{contracts.length === 0 ? <Empty><EmptyHeader><EmptyMedia variant="icon"><FileSignature /></EmptyMedia><EmptyTitle>No subcontracts yet</EmptyTitle><EmptyDescription>Record a subcontractor's agreed contract value to start tracking payments.</EmptyDescription></EmptyHeader></Empty> : <div className="space-y-2">{contracts.map((c) => <div key={c._id} className="rounded-lg border border-border bg-card px-4 py-3"><div className="flex flex-wrap items-start justify-between gap-3"><button type="button" className="min-w-0 flex-1 space-y-1 text-left"><div className="flex flex-wrap items-center gap-2"><span className="font-medium">{c.title}</span>{!c.isActive && <Badge variant="secondary" className="text-[10px]">Inactive</Badge>}{!c.vendorPan && <Badge className="gap-1 bg-amber-500/15 text-[10px] text-amber-600 dark:text-amber-400"><AlertTriangle className="size-3" /> Vendor missing PAN</Badge>}</div><p className="text-xs text-muted-foreground">{c.vendorName} · {c.projectName}</p><div className="flex items-center gap-2 pt-1"><div className="h-1.5 w-32 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary" style={{ width: `${c.contractValue > 0 ? Math.min(100, (c.paidAmount / c.contractValue) * 100) : 0}%` }} /></div><span className="text-[11px] text-muted-foreground">{formatCompactInr(c.paidAmount)} of {formatCompactInr(c.contractValue)} paid</span></div></button><div className="flex items-center gap-2"><Button size="sm" variant="ghost" onClick={() => onEdit(c)}>Edit</Button><div className="text-right"><p className="text-xs text-muted-foreground">Balance</p><p className={cn("font-mono text-sm font-semibold tabular-nums", c.balance > 0.01 ? "text-amber-600" : "text-green-600")}>{formatCompactInr(c.balance)}</p></div></div></div></div>)}</div>}</div>;
+}
+*/
+
+function MigrationSubcontractsContent({ onEdit }: { onEdit: (contract: any) => void }) {
+  const { contracts, error } = useMigrationSubcontracts();
+  if (error) return <div className="p-8 text-sm text-destructive">{error.message}</div>;
+  if (contracts === undefined) return <div className="mx-auto w-full max-w-4xl space-y-4 p-4 md:p-8"><Skeleton className="h-20 w-full" /><Skeleton className="h-40 w-full" /></div>;
+  return <div className="mx-auto w-full max-w-4xl space-y-6 p-4 md:p-8"><div><h1 className="font-serif text-3xl font-semibold tracking-tight">Subcontracts</h1><p className="text-sm text-muted-foreground">Track total contract value, payments made, and balance due per subcontractor.</p></div>{contracts.length === 0 ? <Empty><EmptyHeader><EmptyMedia variant="icon"><FileSignature /></EmptyMedia><EmptyTitle>No subcontracts yet</EmptyTitle><EmptyDescription>Record a subcontractor's agreed contract value to start tracking payments.</EmptyDescription></EmptyHeader></Empty> : <div className="space-y-2">{contracts.map((contract) => <div key={contract._id} className="rounded-lg border border-border bg-card px-4 py-3"><div className="flex items-start justify-between gap-3"><div><p className="font-medium">{contract.title}</p><p className="text-xs text-muted-foreground">{contract.vendorName} · {contract.projectName}</p><p className="mt-2 text-xs text-muted-foreground">{formatCompactInr(contract.paidAmount)} of {formatCompactInr(contract.contractValue)} paid</p></div><div className="flex items-center gap-2"><div className="text-right"><p className="text-xs text-muted-foreground">Balance</p><p className="font-mono text-sm font-semibold text-amber-600">{formatCompactInr(contract.balance)}</p></div><Button size="sm" variant="ghost" onClick={() => onEdit(contract)}>Edit</Button></div></div></div>)}</div>}</div>;
 }
 
 function SubcontractsInner() {
@@ -300,3 +310,7 @@ export default function SubcontractsPage() {
     </>
   );
 }
+
+
+
+

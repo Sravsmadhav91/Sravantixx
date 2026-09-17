@@ -41,11 +41,26 @@ export type ImsParseResult = {
   parseErrors: string[];
 };
 
-function parseDdMmYyyy(raw: string): string {
-  const m = raw.trim().match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  if (!m) return raw.trim();
-  const [, dd, mm, yyyy] = m;
-  return `${yyyy}-${mm}-${dd}`;
+function parsePortalDate(raw: unknown): string {
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    const parsed = XLSX.SSF.parse_date_code(raw);
+    if (parsed) return `${parsed.y.toString().padStart(4, "0")}-${parsed.m.toString().padStart(2, "0")}-${parsed.d.toString().padStart(2, "0")}`;
+  }
+
+  const value = String(raw ?? "").trim();
+  const dateMatch = value.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (dateMatch) {
+    const [, day, month, year] = dateMatch;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  const isoMatch = value.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  return value;
 }
 
 function toNumber(raw: unknown): number {
@@ -56,9 +71,19 @@ function toNumber(raw: unknown): number {
 function findHeaderRowIndex(rows: unknown[][], marker: string): number {
   const needle = marker.toLowerCase();
   for (let i = 0; i < rows.length; i++) {
-    if (rows[i].some((c) => String(c ?? "").trim().toLowerCase() === needle)) return i;
+    if (rows[i].some((c) => String(c ?? "").trim().toLowerCase().includes(needle))) return i;
   }
   return -1;
+}
+
+function normalizeLabel(value: string): string {
+  return value.toLowerCase().replace(/[₹()\[\]{}.,%]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function looksLikeHeaderRow(row: unknown[]): boolean {
+  const text = row.map((cell) => String(cell ?? "").trim().toLowerCase()).join(" | ");
+  const markers = ["gstin", "invoice", "note", "taxable", "integrated tax", "central tax", "status", "date"];
+  return markers.filter((marker) => text.includes(marker)).length >= 2;
 }
 
 /**
@@ -119,16 +144,19 @@ function parseB2bLikeSheet(
   const raw = rowsFromSheet(sheet);
 
   const headerRowIdx = findHeaderRowIndex(raw, "GSTIN of supplier");
-  if (headerRowIdx === -1 || !raw[headerRowIdx + 1]) return [];
+  if (headerRowIdx === -1) return [];
 
   // The portal splits column labels across two stacked header rows — merge them.
   const headerRow1 = raw[headerRowIdx].map((c) => String(c ?? "").trim());
-  const headerRow2 = raw[headerRowIdx + 1].map((c) => String(c ?? "").trim());
-  const labels = headerRow1.map((h1, i) => (headerRow2[i] || h1).toLowerCase());
+  const headerRow2 = looksLikeHeaderRow(raw[headerRowIdx + 1] ?? [])
+    ? (raw[headerRowIdx + 1] ?? []).map((c) => String(c ?? "").trim())
+    : [];
+  const labels = headerRow1.map((h1, i) => normalizeLabel(headerRow2[i] || h1));
 
   const colIndex = (needles: string[]) => {
     for (const needle of needles) {
-      const i = labels.findIndex((l) => l.includes(needle));
+      const normalizedNeedle = normalizeLabel(needle);
+      const i = labels.findIndex((l) => l.includes(normalizedNeedle));
       if (i !== -1) return i;
     }
     return -1;
@@ -148,10 +176,12 @@ function parseB2bLikeSheet(
     cess: colIndex(["cess"]),
   };
 
-  if (idx.gstin === -1 || idx.docNumber === -1 || idx.taxableValue === -1) return [];
+  if (idx.gstin === -1 || idx.docNumber === -1 || idx.taxableValue === -1) {
+    return [];
+  }
 
   const dataRows = raw
-    .slice(headerRowIdx + 2)
+    .slice(headerRowIdx + (headerRow2.length > 0 ? 2 : 1))
     .filter((r) => r.some((c) => String(c ?? "").trim() !== ""));
 
   const rows: ImsInvoiceRow[] = [];
@@ -171,7 +201,7 @@ function parseB2bLikeSheet(
       gstin,
       vendorName: String(r[idx.vendorName] ?? "").trim() || gstin,
       invoiceNumber,
-      invoiceDate: parseDdMmYyyy(String(r[idx.docDate] ?? "")),
+      invoiceDate: parsePortalDate(r[idx.docDate]),
       taxableValue: toNumber(r[idx.taxableValue]),
       integratedTax: toNumber(r[idx.integratedTax]),
       centralTax: toNumber(r[idx.centralTax]),

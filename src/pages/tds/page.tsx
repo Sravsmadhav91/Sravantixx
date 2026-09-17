@@ -47,6 +47,9 @@ import { formatDate } from "@/lib/format.ts";
 import TdsSettingsDialog from "./_components/tds-settings-dialog.tsx";
 import ManualDeductionDialog from "./_components/manual-deduction-dialog.tsx";
 import CreateChallanDialog from "./_components/create-challan-dialog.tsx";
+import MigrationTdsFiling from "./_components/migration-tds-filing.tsx";
+import MigrationTdsFilingComplete from "./_components/migration-tds-filing-complete.tsx";
+import MigrationTdsFilingEnhanced from "./_components/migration-tds-filing-enhanced.tsx";
 import { RETURN_TYPE_OPTIONS, currentQuarter, recentQuarters } from "./_lib/quarters.ts";
 
 function downloadCsv(rows: Record<string, string | number>[], filename: string) {
@@ -61,7 +64,7 @@ function downloadCsv(rows: Record<string, string | number>[], filename: string) 
 }
 
 export default function TdsFilingPage() {
-  if (migrationApiEnabled) return <MigrationTdsPage />;
+  if (migrationApiEnabled) return <MigrationTdsFilingEnhanced />;
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-8">
       <PageHeader
