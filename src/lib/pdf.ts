@@ -66,21 +66,17 @@ function addLetterhead(doc: jsPDF, title: string) {
 }
 
 function addFooter(doc: jsPDF) {
-  const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
   doc.setTextColor(...MUTED);
-  doc.text("Mighty Homes  ·  Flat No.414, 4th Floor, Mighty Marwel, Kannamangala, Bangalore – 560067", 14, H - 8);
-  doc.text(
-    `Printed on ${new Date().toLocaleString("en-IN")}`,
-    W - 14,
-    H - 8,
-    { align: "right" },
-  );
+  // Stacked on separate lines so the address and print timestamp never collide on narrow pages.
+  doc.text("Mighty Homes  ·  Flat No.414, 4th Floor, Mighty Marwel, Kannamangala, Bangalore – 560067", 14, H - 11);
+  doc.text(`Printed on ${new Date().toLocaleString("en-IN")}`, 14, H - 6.5);
 }
 
-function kv(doc: jsPDF, label: string, value: string, x: number, y: number) {
+// Returns the number of lines the value wrapped to, so callers can adjust the next row's y-position.
+function kv(doc: jsPDF, label: string, value: string, x: number, y: number, maxWidth?: number): number {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   doc.setTextColor(...MUTED);
@@ -88,7 +84,13 @@ function kv(doc: jsPDF, label: string, value: string, x: number, y: number) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(...DARK);
+  if (maxWidth) {
+    const lines = doc.splitTextToSize(value, maxWidth) as string[];
+    doc.text(lines, x, y + 5);
+    return lines.length;
+  }
   doc.text(value, x, y + 5);
+  return 1;
 }
 
 // ── Document 1: Booking Confirmation ─────────────────────────────────────────
@@ -386,8 +388,8 @@ export function downloadReceipt(data: ReceiptData) {
     y += 12;
   }
   if (data.chequeRef) {
-    kv(doc, "Cheque / Ref No.", data.chequeRef, 14, y);
-    y += 12;
+    const lines = kv(doc, "Cheque / Ref No.", data.chequeRef, 14, y, W - 28);
+    y += 12 + (lines - 1) * 4.5;
   }
   if (data.buyer.pan) {
     kv(doc, "PAN", data.buyer.pan, 14, y);

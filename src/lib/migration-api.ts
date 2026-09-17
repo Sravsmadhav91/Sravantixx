@@ -484,6 +484,24 @@ export async function createMigrationVendor(input: Record<string, unknown>) {
   return response.json();
 }
 
+export type MigrationPurchaseOrder = Doc<"purchaseOrders"> & { vendorName: string };
+export type MigrationPurchaseInvoice = Doc<"purchaseInvoices"> & { vendorName: string; outstanding: number };
+export type MigrationApAgingRow = { vendorId: string; name: string; current: number; days30: number; days60: number; days90: number; over90: number; total: number };
+
+export function listMigrationPurchaseOrders(status?: string) {
+  const query = status && status !== "all" ? `?status=${encodeURIComponent(status)}` : "";
+  return migrationGet<MigrationPurchaseOrder[]>(`/api/purchase-orders${query}`);
+}
+
+export function listMigrationPurchaseInvoices(status?: string) {
+  const query = status && status !== "all" ? `?status=${encodeURIComponent(status)}` : "";
+  return migrationGet<MigrationPurchaseInvoice[]>(`/api/payables/invoices${query}`);
+}
+
+export function getMigrationApAging() {
+  return migrationGet<MigrationApAgingRow[]>("/api/payables/aging");
+}
+
 export async function importMigrationImsInvoices(rows: Record<string, unknown>[]) {
   const response = await fetch(`${apiUrl}/api/payables/import-ims`, {
     method: "POST",
