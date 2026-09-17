@@ -1,0 +1,3 @@
+import { useEffect, useState } from "react";
+import { migrationGet } from "@/lib/migration-api.ts";
+export function useMigrationLeads(status: string, search: string) { const [data, setData] = useState<any[] | undefined>(); useEffect(() => { let active = true; const query = new URLSearchParams(); if (status !== "all") query.set("status", status); if (search) query.set("search", search); migrationGet<any[]>(`/api/leads${query.toString() ? `?${query}` : ""}`).then((value) => active && setData(value)).catch(() => active && setData([])); return () => { active = false; }; }, [status, search]); return data; }

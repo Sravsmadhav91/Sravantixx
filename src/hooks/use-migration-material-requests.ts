@@ -1,0 +1,3 @@
+import { useEffect, useState } from "react";
+import { migrationGet } from "@/lib/migration-api.ts";
+export function useMigrationMaterialRequests(status: string) { const [data, setData] = useState<any[] | undefined>(); useEffect(() => { let active = true; migrationGet<any[]>(`/api/material-requests${status === "all" ? "" : `?status=${status}`}`).then((value) => active && setData(value)).catch(() => active && setData([])); return () => { active = false; }; }, [status]); return data; }
