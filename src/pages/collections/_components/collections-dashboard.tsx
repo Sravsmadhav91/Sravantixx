@@ -76,25 +76,93 @@ function AgingTooltip({
 }
 
 export default function CollectionsDashboard() {
+  return migrationApiEnabled ? <MigrationCollectionsDashboardData /> : <ConvexCollectionsDashboardData />;
+}
+
+function ConvexCollectionsDashboardData() {
   const [fromDate, setFromDate] = useState(defaultFromDate());
   const [toDate, setToDate] = useState(todayDate());
   const [projectId, setProjectId] = useState<string>("all");
 
   const projects = useQuery(api.projects.list, {});
-  const convexData = useQuery(api.reports.getCollectionsDashboard, {
+  const data = useQuery(api.reports.getCollectionsDashboard, {
     fromDate,
     toDate,
     projectId: projectId !== "all" ? (projectId as Id<"projects">) : undefined,
   });
-  const migrationProjects = useMigrationProjects();
-  const migrationData = useMigrationCollectionsDashboard({ projectId, fromDate, toDate });
-  const displayedProjects = migrationApiEnabled ? migrationProjects.projects : projects;
-  const data = migrationApiEnabled ? migrationData : convexData;
 
   const projectOptions = [
     { value: "all", label: "All projects" },
-    ...(displayedProjects ?? []).map((p) => ({ value: p._id, label: p.name })),
+    ...(projects ?? []).map((p) => ({ value: p._id, label: p.name })),
   ];
+
+  return (
+    <CollectionsDashboardView
+      data={data}
+      projectOptions={projectOptions}
+      fromDate={fromDate}
+      setFromDate={setFromDate}
+      toDate={toDate}
+      setToDate={setToDate}
+      projectId={projectId}
+      setProjectId={setProjectId}
+    />
+  );
+}
+
+function MigrationCollectionsDashboardData() {
+  const [fromDate, setFromDate] = useState(defaultFromDate());
+  const [toDate, setToDate] = useState(todayDate());
+  const [projectId, setProjectId] = useState<string>("all");
+
+  const migrationProjects = useMigrationProjects();
+  const data = useMigrationCollectionsDashboard({ projectId, fromDate, toDate });
+
+  const projectOptions = [
+    { value: "all", label: "All projects" },
+    ...(migrationProjects.projects ?? []).map((p) => ({ value: p._id, label: p.name })),
+  ];
+
+  return (
+    <CollectionsDashboardView
+      data={data}
+      projectOptions={projectOptions}
+      fromDate={fromDate}
+      setFromDate={setFromDate}
+      toDate={toDate}
+      setToDate={setToDate}
+      projectId={projectId}
+      setProjectId={setProjectId}
+    />
+  );
+}
+
+type DashboardData = {
+  kpis: { totalAgreementValue: number; totalCollected: number; collectionRate: number; totalOutstanding: number; overdueAmount: number; overdueCount: number; upcomingAmount: number; upcomingCount: number };
+  aging: { label: string; amount: number; count: number }[];
+  trend: { month: string; collectedAmount: number; sortKey: string }[];
+  byProject: { name: string; collectedAmount: number; outstanding: number }[];
+};
+
+function CollectionsDashboardView({
+  data,
+  projectOptions,
+  fromDate,
+  setFromDate,
+  toDate,
+  setToDate,
+  projectId,
+  setProjectId,
+}: {
+  data: DashboardData | undefined;
+  projectOptions: { value: string; label: string }[];
+  fromDate: string;
+  setFromDate: (value: string) => void;
+  toDate: string;
+  setToDate: (value: string) => void;
+  projectId: string;
+  setProjectId: (value: string) => void;
+}) {
 
   const loaded = data !== undefined;
   const hasAging = loaded && data.aging.some((a) => a.count > 0);
