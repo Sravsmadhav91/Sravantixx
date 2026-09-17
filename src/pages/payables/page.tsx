@@ -44,10 +44,35 @@ import {
 import { useMigrationFinance } from "@/hooks/use-migration-finance.ts";
 import { toast } from "sonner";
 
+type PayablesDateFilter = "all" | "today" | "this_month" | "last_30" | "last_90";
+type PayablesSort = "name" | "date" | "value_asc" | "value_desc";
+
+function matchesPayablesDate(value: string | undefined, filter: PayablesDateFilter) {
+  if (filter === "all" || !value) return filter === "all";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  const now = new Date();
+  if (filter === "today") return value.slice(0, 10) === now.toISOString().slice(0, 10);
+  if (filter === "this_month") return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+  const days = filter === "last_30" ? 30 : 90;
+  return date >= new Date(Date.now() - days * 86400000) && date <= now;
+}
+
+function comparePayables<T extends { vendorName?: string; name?: string; date?: string; total?: number; totalAmount?: number; balance?: number }>(a: T, b: T, sort: PayablesSort) {
+  if (sort === "name") return String(a.vendorName ?? a.name ?? "").localeCompare(String(b.vendorName ?? b.name ?? ""));
+  if (sort === "date") return String(b.date ?? "").localeCompare(String(a.date ?? ""));
+  const aValue = Number(a.total ?? a.totalAmount ?? a.balance ?? 0);
+  const bValue = Number(b.total ?? b.totalAmount ?? b.balance ?? 0);
+  return sort === "value_asc" ? aValue - bValue : bValue - aValue;
+}
+
 function MigrationPayablesPage() {
   const [tab, setTab] = useState<"orders" | "invoices" | "vendors" | "aging">("orders");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [nameFilter, setNameFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState<PayablesDateFilter>("all");
+  const [sortBy, setSortBy] = useState<PayablesSort>("date");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState(""); const [category, setCategory] = useState("contractor"); const [phone, setPhone] = useState(""); const [email, setEmail] = useState(""); const [gstin, setGstin] = useState(""); const [pan, setPan] = useState(""); const [address, setAddress] = useState(""); const [bankName, setBankName] = useState(""); const [bankAccount, setBankAccount] = useState(""); const [ifsc, setIfsc] = useState(""); const [notes, setNotes] = useState("");
   const submit = async () => { if (!name.trim()) { toast.error("Vendor name is required"); return; } try { await createMigrationVendor({ name, category, phone, email, gstin, pan, address, bankName, bankAccount, ifsc, notes }); toast.success("Vendor added"); setDialogOpen(false); window.location.reload(); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not add vendor"); } };
@@ -59,13 +84,17 @@ function MigrationPayablesPage() {
 
   const filteredOrders = purchaseOrders?.filter((po) => {
     if (statusFilter !== "all" && po.status !== statusFilter) return false;
+    if (nameFilter !== "all" && po.vendorName !== nameFilter) return false;
+    if (!matchesPayablesDate(po.date, dateFilter)) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return po.poNumber.toLowerCase().includes(q) || po.vendorName.toLowerCase().includes(q);
-  });
+  }).sort((a, b) => comparePayables(a, b, sortBy));
 
   const filteredInvoices = invoices?.filter((inv) => {
     if (statusFilter !== "all" && inv.status !== statusFilter) return false;
+    if (nameFilter !== "all" && inv.vendorName !== nameFilter) return false;
+    if (!matchesPayablesDate(inv.date, dateFilter)) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -73,13 +102,14 @@ function MigrationPayablesPage() {
       inv.invoiceNumber.toLowerCase().includes(q) ||
       inv.vendorName.toLowerCase().includes(q)
     );
-  });
+  }).sort((a, b) => comparePayables(a, b, sortBy));
 
   const filteredVendors = vendors?.filter((v) => {
+    if (nameFilter !== "all" && v.name !== nameFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return v.name.toLowerCase().includes(q) || (v.gstin ?? "").toLowerCase().includes(q);
-  });
+  }).sort((a, b) => comparePayables(a, b, sortBy));
 
   const totalOutstanding = aging?.reduce((s, v) => s + v.total, 0) ?? 0;
 
@@ -111,7 +141,7 @@ function MigrationPayablesPage() {
         ))}
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => { setTab(v as typeof tab); setStatusFilter("all"); }}>
+      <Tabs value={tab} onValueChange={(v) => { setTab(v as typeof tab); setStatusFilter("all"); setNameFilter("all"); setDateFilter("all"); }}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList>
             <TabsTrigger value="orders">Purchase Orders</TabsTrigger>
@@ -153,6 +183,34 @@ function MigrationPayablesPage() {
                 </SelectContent>
               </Select>
             )}
+            <Select value={nameFilter} onValueChange={setNameFilter}>
+              <SelectTrigger className="h-8 w-44 text-sm"><SelectValue placeholder="All vendors" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All vendors</SelectItem>
+                {(vendors ?? []).map((vendor) => <SelectItem key={vendor._id} value={vendor.name}>{vendor.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {tab !== "aging" && (
+              <Select value={dateFilter} onValueChange={(value) => setDateFilter(value as PayablesDateFilter)}>
+                <SelectTrigger className="h-8 w-32 text-sm"><SelectValue placeholder="All dates" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All dates</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="this_month">This month</SelectItem>
+                  <SelectItem value="last_30">Last 30 days</SelectItem>
+                  <SelectItem value="last_90">Last 90 days</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as PayablesSort)}>
+              <SelectTrigger className="h-8 w-36 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Name A–Z</SelectItem>
+                <SelectItem value="date">Newest date</SelectItem>
+                <SelectItem value="value_asc">Value low–high</SelectItem>
+                <SelectItem value="value_desc">Value high–low</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
@@ -416,6 +474,9 @@ function PayablesInner() {
   const [tab, setTab] = useState<"orders" | "invoices" | "vendors" | "aging">("orders");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [nameFilter, setNameFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState<PayablesDateFilter>("all");
+  const [sortBy, setSortBy] = useState<PayablesSort>("date");
   const [vendorDialog, setVendorDialog] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Doc<"vendors"> | null>(null);
   const [invoiceDialog, setInvoiceDialog] = useState(false);
@@ -442,6 +503,9 @@ function PayablesInner() {
   });
 
   const filteredInvoices = invoices?.filter((i) => {
+    if (statusFilter !== "all" && i.status !== statusFilter) return false;
+    if (nameFilter !== "all" && i.vendorName !== nameFilter) return false;
+    if (!matchesPayablesDate(i.date, dateFilter)) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -449,19 +513,23 @@ function PayablesInner() {
       i.invoiceNumber.toLowerCase().includes(q) ||
       i.vendorName.toLowerCase().includes(q)
     );
-  });
+  }).sort((a, b) => comparePayables(a, b, sortBy));
 
   const filteredVendors = vendors?.filter((v) => {
+    if (nameFilter !== "all" && v.name !== nameFilter) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return v.name.toLowerCase().includes(q) || (v.gstin ?? "").toLowerCase().includes(q);
-  });
+  }).sort((a, b) => comparePayables(a, b, sortBy));
 
   const filteredOrders = purchaseOrders?.filter((o) => {
+    if (statusFilter !== "all" && o.status !== statusFilter) return false;
+    if (nameFilter !== "all" && o.vendorName !== nameFilter) return false;
+    if (!matchesPayablesDate(o.date, dateFilter)) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return o.poNumber.toLowerCase().includes(q) || o.vendorName.toLowerCase().includes(q);
-  });
+  }).sort((a, b) => comparePayables(a, b, sortBy));
 
   const totalOutstanding = aging?.reduce((s, v) => s + v.total, 0) ?? 0;
 
@@ -504,7 +572,7 @@ function PayablesInner() {
         ))}
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => { setTab(v as typeof tab); setStatusFilter("all"); }}>
+      <Tabs value={tab} onValueChange={(v) => { setTab(v as typeof tab); setStatusFilter("all"); setNameFilter("all"); setDateFilter("all"); }}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList>
             <TabsTrigger value="orders">Purchase Orders</TabsTrigger>
@@ -546,6 +614,34 @@ function PayablesInner() {
                 </SelectContent>
               </Select>
             )}
+            <Select value={nameFilter} onValueChange={setNameFilter}>
+              <SelectTrigger className="h-8 w-44 text-sm"><SelectValue placeholder="All vendors" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All vendors</SelectItem>
+                {(vendors ?? []).map((vendor) => <SelectItem key={vendor._id} value={vendor.name}>{vendor.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {tab !== "aging" && (
+              <Select value={dateFilter} onValueChange={(value) => setDateFilter(value as PayablesDateFilter)}>
+                <SelectTrigger className="h-8 w-32 text-sm"><SelectValue placeholder="All dates" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All dates</SelectItem>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="this_month">This month</SelectItem>
+                  <SelectItem value="last_30">Last 30 days</SelectItem>
+                  <SelectItem value="last_90">Last 90 days</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as PayablesSort)}>
+              <SelectTrigger className="h-8 w-36 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="name">Name A–Z</SelectItem>
+                <SelectItem value="date">Newest date</SelectItem>
+                <SelectItem value="value_asc">Value low–high</SelectItem>
+                <SelectItem value="value_desc">Value high–low</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
