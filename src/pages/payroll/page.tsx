@@ -1,8 +1,22 @@
 import { useState } from "react";
-import { useQuery, useMutation, Authenticated, Unauthenticated, AuthLoading } from "convex/react";
+import {
+  useQuery,
+  useMutation,
+  Authenticated,
+  Unauthenticated,
+  AuthLoading,
+} from "convex/react";
 import { toast } from "sonner";
 import { ConvexError } from "convex/values";
-import { Users, Plus, Pencil, CheckCircle, XCircle, CalendarClock, Wallet } from "lucide-react";
+import {
+  Users,
+  Plus,
+  Pencil,
+  CheckCircle,
+  XCircle,
+  CalendarClock,
+  Wallet,
+} from "lucide-react";
 import { api } from "@/convex/_generated/api.js";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { SignInButton } from "@/components/ui/signin.tsx";
@@ -10,7 +24,12 @@ import PageHeader from "@/components/page-header.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs.tsx";
 import {
   Empty,
   EmptyContent,
@@ -21,7 +40,7 @@ import {
 } from "@/components/ui/empty.tsx";
 import { useRole } from "@/hooks/use-role.ts";
 import { useMigrationPayroll } from "@/hooks/use-migration-payroll.ts";
-import { migrationApiEnabled } from "@/lib/migration-api.ts";
+import { deleteMigrationEmployee, migrationApiEnabled } from "@/lib/migration-api.ts";
 import { formatCompactInr } from "@/lib/real-estate.ts";
 import { formatDate } from "@/lib/format.ts";
 import EmployeeFormDialog from "./_components/employee-form-dialog.tsx";
@@ -62,27 +81,153 @@ export default function PayrollPage() {
 
 function MigrationPayrollPage() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<any>();
   const [runOpen, setRunOpen] = useState(false);
+  const removeEmployee = async (employee: any) => {
+    if (!window.confirm(`Delete employee ${employee.name}?`)) return;
+    try {
+      await deleteMigrationEmployee(employee._id);
+      toast.success("Employee deleted");
+      window.location.reload();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete employee");
+    }
+  };
   return (
     <>
-      <MigrationPayrollPageContent />
-      <Button className="fixed bottom-6 right-6 z-20 shadow-lg" onClick={() => setCreateOpen(true)}>
+      <MigrationPayrollPageContent
+        onEdit={(employee) => { setEditingEmployee(employee); setEditOpen(true); }}
+        onDelete={(employee) => void removeEmployee(employee)}
+      />
+      <Button
+        className="fixed bottom-6 right-6 z-20 shadow-lg"
+        onClick={() => setCreateOpen(true)}
+      >
         <Plus className="size-4" /> New Employee
       </Button>
-      <Button className="fixed bottom-6 right-48 z-20 shadow-lg" variant="secondary" onClick={() => setRunOpen(true)}>
+      <Button
+        className="fixed bottom-6 right-48 z-20 shadow-lg"
+        variant="secondary"
+        onClick={() => setRunOpen(true)}
+      >
         <Wallet className="size-4" /> New Payroll Run
       </Button>
       <MigrationEmployeeDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <MigrationEmployeeDialog open={editOpen} onOpenChange={(open) => { setEditOpen(open); if (!open) setEditingEmployee(undefined); }} editing={editingEmployee} />
       <MigrationPayrollRunDialog open={runOpen} onOpenChange={setRunOpen} />
     </>
   );
 }
 
-function MigrationPayrollPageContent() {
+function MigrationPayrollPageContent({ onEdit, onDelete }: { onEdit: (employee: any) => void; onDelete: (employee: any) => void }) {
   const { employees, runs, error } = useMigrationPayroll();
-  if (error) return <div className="p-8 text-sm text-destructive">{error.message}</div>;
-  if (employees === undefined || runs === undefined) return <div className="mx-auto w-full max-w-6xl space-y-4 p-4 md:p-8"><Skeleton className="h-20 w-full" /><Skeleton className="h-40 w-full" /></div>;
-  return <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-8"><PageHeader title="Payroll" subtitle="Employee salary structures, monthly payroll runs, PF/ESI deductions, and payslips" breadcrumbs={[{ label: "Payroll" }]} /><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[{ label: "Active Employees", value: String(employees.filter((e) => e.isActive !== false).length), color: "text-foreground" }, { label: "Payroll Runs", value: String(runs.length), color: "text-foreground" }, { label: "Latest Net Pay", value: runs.length > 0 ? formatCompactInr(runs[0].totalNetPay) : "—", color: "text-primary" }].map((s) => <div key={s.label} className="rounded-lg border bg-card px-4 py-3"><p className="text-xs text-muted-foreground">{s.label}</p><p className="mt-0.5 text-xl font-bold tabular-nums">{s.value}</p></div>)}</div><div className="rounded-lg border bg-card overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left text-xs font-medium uppercase text-muted-foreground"><th className="px-3 py-2">Employee</th><th className="px-3 py-2">Designation</th><th className="px-3 py-2 text-right">Gross Salary</th><th className="px-3 py-2">PF / ESI</th><th className="px-3 py-2">Status</th></tr></thead><tbody className="divide-y">{employees.map((e) => { const gross = (e.basic ?? 0) + (e.hra ?? 0) + (e.conveyance ?? 0) + (e.specialAllowance ?? 0) + (e.otherAllowances ?? 0); return <tr key={e._id} className="hover:bg-muted/30"><td className="px-3 py-2"><span className="font-medium">{e.name}</span><span className="ml-1.5 font-mono text-xs text-muted-foreground">{e.employeeCode}</span></td><td className="px-3 py-2 text-xs text-muted-foreground">{e.designation ?? "—"}</td><td className="px-3 py-2 text-right tabular-nums text-xs font-semibold">{formatCompactInr(gross)}</td><td className="px-3 py-2 text-xs text-muted-foreground">{e.pfApplicable ? "PF" : ""}{e.pfApplicable && e.esiApplicable ? " · " : ""}{e.esiApplicable ? "ESI" : ""}{!e.pfApplicable && !e.esiApplicable ? "—" : ""}</td><td className="px-3 py-2">{e.isActive === false ? <Badge variant="secondary">Inactive</Badge> : <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">Active</Badge>}</td></tr>})}</tbody></table></div></div>;
+  if (error)
+    return <div className="p-8 text-sm text-destructive">{error.message}</div>;
+  if (employees === undefined || runs === undefined)
+    return (
+      <div className="mx-auto w-full max-w-6xl space-y-4 p-4 md:p-8">
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
+  return (
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-8">
+      <PageHeader
+        title="Payroll"
+        subtitle="Employee salary structures, monthly payroll runs, PF/ESI deductions, and payslips"
+        breadcrumbs={[{ label: "Payroll" }]}
+      />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {[
+          {
+            label: "Active Employees",
+            value: String(employees.filter((e) => e.isActive !== false).length),
+            color: "text-foreground",
+          },
+          {
+            label: "Payroll Runs",
+            value: String(runs.length),
+            color: "text-foreground",
+          },
+          {
+            label: "Latest Net Pay",
+            value:
+              runs.length > 0 ? formatCompactInr(runs[0].totalNetPay) : "—",
+            color: "text-primary",
+          },
+        ].map((s) => (
+          <div key={s.label} className="rounded-lg border bg-card px-4 py-3">
+            <p className="text-xs text-muted-foreground">{s.label}</p>
+            <p className="mt-0.5 text-xl font-bold tabular-nums">{s.value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="rounded-lg border bg-card overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b text-left text-xs font-medium uppercase text-muted-foreground">
+              <th className="px-3 py-2">Employee</th>
+              <th className="px-3 py-2">Designation</th>
+              <th className="px-3 py-2 text-right">Gross Salary</th>
+              <th className="px-3 py-2">PF / ESI</th>
+              <th className="px-3 py-2">Status</th>
+              <th className="px-3 py-2 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {employees.map((e) => {
+              const gross =
+                (e.basic ?? 0) +
+                (e.hra ?? 0) +
+                (e.conveyance ?? 0) +
+                (e.specialAllowance ?? 0) +
+                (e.otherAllowances ?? 0);
+              return (
+                <tr key={e._id} className="hover:bg-muted/30">
+                  <td className="px-3 py-2">
+                    <span className="font-medium">{e.name}</span>
+                    <span className="ml-1.5 font-mono text-xs text-muted-foreground">
+                      {e.employeeCode}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">
+                    {e.designation ?? "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right tabular-nums text-xs font-semibold">
+                    {formatCompactInr(gross)}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">
+                    {e.pfApplicable ? "PF" : ""}
+                    {e.pfApplicable && e.esiApplicable ? " · " : ""}
+                    {e.esiApplicable ? "ESI" : ""}
+                    {!e.pfApplicable && !e.esiApplicable ? "—" : ""}
+                  </td>
+                  <td className="px-3 py-2">
+                    {e.isActive === false ? (
+                      <Badge variant="secondary">Inactive</Badge>
+                    ) : (
+                      <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                        Active
+                      </Badge>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <Button size="icon" variant="ghost" className="size-7" aria-label={`Edit ${e.name}`} onClick={() => onEdit(e)}>
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="size-7 text-destructive" aria-label={`Delete ${e.name}`} onClick={() => onDelete(e)}>
+                      <XCircle className="size-4" />
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 function PayrollInner() {
@@ -90,7 +235,9 @@ function PayrollInner() {
   const [tab, setTab] = useState<"employees" | "runs">("employees");
 
   const [employeeDialog, setEmployeeDialog] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<Doc<"employees"> | undefined>();
+  const [editingEmployee, setEditingEmployee] = useState<
+    Doc<"employees"> | undefined
+  >();
   const [newRunDialog, setNewRunDialog] = useState(false);
   const [openRunId, setOpenRunId] = useState<Id<"payrollRuns"> | null>(null);
 
@@ -103,9 +250,13 @@ function PayrollInner() {
       await setActive({
         employeeId: employee._id,
         isActive: !employee.isActive,
-        dateOfLeaving: employee.isActive ? new Date().toISOString().slice(0, 10) : undefined,
+        dateOfLeaving: employee.isActive
+          ? new Date().toISOString().slice(0, 10)
+          : undefined,
       });
-      toast.success(employee.isActive ? "Employee deactivated" : "Employee reactivated");
+      toast.success(
+        employee.isActive ? "Employee deactivated" : "Employee reactivated",
+      );
     } catch (err) {
       if (err instanceof ConvexError) {
         const { message } = err.data as { message: string };
@@ -120,9 +271,18 @@ function PayrollInner() {
     <>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Active Employees", value: String(employees?.filter((e) => e.isActive).length ?? "—") },
+          {
+            label: "Active Employees",
+            value: String(employees?.filter((e) => e.isActive).length ?? "—"),
+          },
           { label: "Payroll Runs", value: String(runs?.length ?? "—") },
-          { label: "Latest Net Pay", value: runs && runs.length > 0 ? formatCompactInr(runs[0].totalNetPay) : "—" },
+          {
+            label: "Latest Net Pay",
+            value:
+              runs && runs.length > 0
+                ? formatCompactInr(runs[0].totalNetPay)
+                : "—",
+          },
         ].map((s) => (
           <div key={s.label} className="rounded-lg border bg-card px-4 py-3">
             <p className="text-xs text-muted-foreground">{s.label}</p>
@@ -134,11 +294,21 @@ function PayrollInner() {
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList>
-            <TabsTrigger value="employees"><Users className="size-3.5" /> Employees</TabsTrigger>
-            <TabsTrigger value="runs"><CalendarClock className="size-3.5" /> Payroll Runs</TabsTrigger>
+            <TabsTrigger value="employees">
+              <Users className="size-3.5" /> Employees
+            </TabsTrigger>
+            <TabsTrigger value="runs">
+              <CalendarClock className="size-3.5" /> Payroll Runs
+            </TabsTrigger>
           </TabsList>
           {isOwner && tab === "employees" && (
-            <Button size="sm" onClick={() => { setEditingEmployee(undefined); setEmployeeDialog(true); }}>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingEmployee(undefined);
+                setEmployeeDialog(true);
+              }}
+            >
               <Plus className="size-4" /> New Employee
             </Button>
           )}
@@ -152,16 +322,30 @@ function PayrollInner() {
         {/* EMPLOYEES TAB */}
         <TabsContent value="employees" className="mt-4">
           {employees === undefined ? (
-            <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full" />
+              ))}
+            </div>
           ) : employees.length === 0 ? (
             <Empty>
               <EmptyHeader>
-                <EmptyMedia variant="icon"><Users /></EmptyMedia>
+                <EmptyMedia variant="icon">
+                  <Users />
+                </EmptyMedia>
                 <EmptyTitle>No employees yet</EmptyTitle>
-                <EmptyDescription>Add employees to build salary structures and run payroll.</EmptyDescription>
+                <EmptyDescription>
+                  Add employees to build salary structures and run payroll.
+                </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <Button size="sm" onClick={() => { setEditingEmployee(undefined); setEmployeeDialog(true); }}>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setEditingEmployee(undefined);
+                    setEmployeeDialog(true);
+                  }}
+                >
                   <Plus className="size-4" /> New Employee
                 </Button>
               </EmptyContent>
@@ -181,30 +365,66 @@ function PayrollInner() {
                 </thead>
                 <tbody className="divide-y">
                   {employees.map((e) => {
-                    const gross = e.basic + e.hra + e.conveyance + e.specialAllowance + e.otherAllowances;
+                    const gross =
+                      e.basic +
+                      e.hra +
+                      e.conveyance +
+                      e.specialAllowance +
+                      e.otherAllowances;
                     return (
                       <tr key={e._id} className="hover:bg-muted/30">
                         <td className="px-3 py-2">
                           <span className="font-medium">{e.name}</span>
-                          <span className="ml-1.5 font-mono text-xs text-muted-foreground">{e.employeeCode}</span>
+                          <span className="ml-1.5 font-mono text-xs text-muted-foreground">
+                            {e.employeeCode}
+                          </span>
                         </td>
-                        <td className="px-3 py-2 text-xs text-muted-foreground">{e.designation}</td>
-                        <td className="px-3 py-2 text-right tabular-nums text-xs font-semibold">{formatCompactInr(gross)}</td>
                         <td className="px-3 py-2 text-xs text-muted-foreground">
-                          {e.pfApplicable ? "PF" : ""}{e.pfApplicable && e.esiApplicable ? " · " : ""}{e.esiApplicable ? "ESI" : ""}
+                          {e.designation}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-xs font-semibold">
+                          {formatCompactInr(gross)}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground">
+                          {e.pfApplicable ? "PF" : ""}
+                          {e.pfApplicable && e.esiApplicable ? " · " : ""}
+                          {e.esiApplicable ? "ESI" : ""}
                           {!e.pfApplicable && !e.esiApplicable && "—"}
                         </td>
                         <td className="px-3 py-2">
-                          {e.isActive ? <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}
+                          {e.isActive ? (
+                            <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">Inactive</Badge>
+                          )}
                         </td>
                         <td className="px-2 py-2">
                           {isOwner && (
                             <div className="flex gap-1 justify-end">
-                              <Button variant="ghost" size="icon" className="size-7" onClick={() => { setEditingEmployee(e); setEmployeeDialog(true); }}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                onClick={() => {
+                                  setEditingEmployee(e);
+                                  setEmployeeDialog(true);
+                                }}
+                              >
                                 <Pencil className="size-3.5" />
                               </Button>
-                              <Button variant="ghost" size="icon" className="size-7" onClick={() => handleToggleActive(e)}>
-                                {e.isActive ? <XCircle className="size-3.5 text-muted-foreground" /> : <CheckCircle className="size-3.5 text-green-600" />}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                onClick={() => handleToggleActive(e)}
+                              >
+                                {e.isActive ? (
+                                  <XCircle className="size-3.5 text-muted-foreground" />
+                                ) : (
+                                  <CheckCircle className="size-3.5 text-green-600" />
+                                )}
                               </Button>
                             </div>
                           )}
@@ -221,13 +441,22 @@ function PayrollInner() {
         {/* PAYROLL RUNS TAB */}
         <TabsContent value="runs" className="mt-4">
           {runs === undefined ? (
-            <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-14 w-full" />
+              ))}
+            </div>
           ) : runs.length === 0 ? (
             <Empty>
               <EmptyHeader>
-                <EmptyMedia variant="icon"><CalendarClock /></EmptyMedia>
+                <EmptyMedia variant="icon">
+                  <CalendarClock />
+                </EmptyMedia>
                 <EmptyTitle>No payroll runs yet</EmptyTitle>
-                <EmptyDescription>Create a monthly payroll run to generate payslips for active employees.</EmptyDescription>
+                <EmptyDescription>
+                  Create a monthly payroll run to generate payslips for active
+                  employees.
+                </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
                 <Button size="sm" onClick={() => setNewRunDialog(true)}>
@@ -248,11 +477,17 @@ function PayrollInner() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{run.month}</p>
                     <p className="text-xs text-muted-foreground">
-                      {run.finalizedDate ? `Finalized ${formatDate(run.finalizedDate)}` : "Not finalized"}
+                      {run.finalizedDate
+                        ? `Finalized ${formatDate(run.finalizedDate)}`
+                        : "Not finalized"}
                     </p>
                   </div>
-                  <span className="text-sm font-semibold tabular-nums">{formatCompactInr(run.totalNetPay)}</span>
-                  <Badge className={RUN_STATUS_COLORS[run.status]}>{run.status}</Badge>
+                  <span className="text-sm font-semibold tabular-nums">
+                    {formatCompactInr(run.totalNetPay)}
+                  </span>
+                  <Badge className={RUN_STATUS_COLORS[run.status]}>
+                    {run.status}
+                  </Badge>
                 </button>
               ))}
             </div>
@@ -262,11 +497,22 @@ function PayrollInner() {
 
       <EmployeeFormDialog
         open={employeeDialog}
-        onOpenChange={(o) => { setEmployeeDialog(o); if (!o) setEditingEmployee(undefined); }}
+        onOpenChange={(o) => {
+          setEmployeeDialog(o);
+          if (!o) setEditingEmployee(undefined);
+        }}
         editing={editingEmployee}
       />
-      <NewPayrollRunDialog open={newRunDialog} onOpenChange={setNewRunDialog} onCreated={(id) => setOpenRunId(id)} />
-      <PayrollRunDialog open={!!openRunId} onOpenChange={(o) => !o && setOpenRunId(null)} payrollRunId={openRunId} />
+      <NewPayrollRunDialog
+        open={newRunDialog}
+        onOpenChange={setNewRunDialog}
+        onCreated={(id) => setOpenRunId(id)}
+      />
+      <PayrollRunDialog
+        open={!!openRunId}
+        onOpenChange={(o) => !o && setOpenRunId(null)}
+        payrollRunId={openRunId}
+      />
     </>
   );
 }

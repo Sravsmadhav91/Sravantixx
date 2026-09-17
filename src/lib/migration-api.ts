@@ -286,6 +286,30 @@ export async function createMigrationEmployee(input: Record<string, unknown>) {
   return response.json();
 }
 
+export async function updateMigrationEmployee(employeeId: string, input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/payroll/employees/${encodeURIComponent(employeeId)}`, {
+    method: "PATCH",
+    headers: { ...await migrationHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `Migration API request failed (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function deleteMigrationEmployee(employeeId: string) {
+  const response = await fetch(`${apiUrl}/api/payroll/employees/${encodeURIComponent(employeeId)}`, {
+    method: "DELETE",
+    headers: await migrationHeaders(),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `Migration API request failed (${response.status})`);
+  }
+}
+
 export async function createMigrationPayrollRun(month: string) {
   const response = await fetch(`${apiUrl}/api/payroll/runs`, {
     method: "POST",

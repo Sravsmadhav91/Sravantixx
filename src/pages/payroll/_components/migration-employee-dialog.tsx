@@ -1,14 +1,34 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { createMigrationEmployee, migrationGet } from "@/lib/migration-api.ts";
+import { createMigrationEmployee, migrationGet, updateMigrationEmployee } from "@/lib/migration-api.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Checkbox } from "@/components/ui/checkbox.tsx";
 
 type CostCenter = { _id: string; name: string };
+type Employee = {
+  _id: string;
+  name: string;
+  designation: string;
+  dateOfJoining: string;
+  pan?: string;
+  uan?: string;
+  phone?: string;
+  email?: string;
+  bankAccount?: string;
+  bankIfsc?: string;
+  costCenterId?: string;
+  basic: number;
+  hra: number;
+  conveyance: number;
+  specialAllowance: number;
+  otherAllowances: number;
+  pfApplicable: boolean;
+  esiApplicable: boolean;
+};
 
-export default function MigrationEmployeeDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export default function MigrationEmployeeDialog({ open, onOpenChange, editing }: { open: boolean; onOpenChange: (open: boolean) => void; editing?: Employee }) {
   const [name, setName] = useState("");
   const [designation, setDesignation] = useState("");
   const [dateOfJoining, setDateOfJoining] = useState(new Date().toISOString().slice(0, 10));
@@ -31,27 +51,27 @@ export default function MigrationEmployeeDialog({ open, onOpenChange }: { open: 
 
   useEffect(() => {
     if (!open) return;
-    setName("");
-    setDesignation("");
-    setDateOfJoining(new Date().toISOString().slice(0, 10));
-    setPan("");
-    setUan("");
-    setPhone("");
-    setEmail("");
-    setBankAccount("");
-    setBankIfsc("");
-    setCostCenterId("");
-    setBasic("");
-    setHra("0");
-    setConveyance("0");
-    setSpecialAllowance("0");
-    setOtherAllowances("0");
-    setPfApplicable(true);
-    setEsiApplicable(false);
+    setName(editing?.name ?? "");
+    setDesignation(editing?.designation ?? "");
+    setDateOfJoining(editing?.dateOfJoining ?? new Date().toISOString().slice(0, 10));
+    setPan(editing?.pan ?? "");
+    setUan(editing?.uan ?? "");
+    setPhone(editing?.phone ?? "");
+    setEmail(editing?.email ?? "");
+    setBankAccount(editing?.bankAccount ?? "");
+    setBankIfsc(editing?.bankIfsc ?? "");
+    setCostCenterId(editing?.costCenterId ?? "");
+    setBasic(editing ? String(editing.basic) : "");
+    setHra(editing ? String(editing.hra) : "0");
+    setConveyance(editing ? String(editing.conveyance) : "0");
+    setSpecialAllowance(editing ? String(editing.specialAllowance) : "0");
+    setOtherAllowances(editing ? String(editing.otherAllowances) : "0");
+    setPfApplicable(editing?.pfApplicable ?? true);
+    setEsiApplicable(editing?.esiApplicable ?? false);
     migrationGet<CostCenter[]>("/api/tables/costCenters/records")
       .then((rows) => setCostCenters(rows))
       .catch(() => setCostCenters([]));
-  }, [open]);
+  }, [open, editing]);
 
   const submit = async () => {
     if (!name.trim() || !designation.trim() || !dateOfJoining || !basic) {
@@ -60,7 +80,7 @@ export default function MigrationEmployeeDialog({ open, onOpenChange }: { open: 
     }
     setSaving(true);
     try {
-      await createMigrationEmployee({
+      const payload = {
         name: name.trim(),
         designation: designation.trim(),
         dateOfJoining,
@@ -78,8 +98,10 @@ export default function MigrationEmployeeDialog({ open, onOpenChange }: { open: 
         otherAllowances: Number(otherAllowances || 0),
         pfApplicable,
         esiApplicable,
-      });
-      toast.success("Employee added");
+      };
+      if (editing) await updateMigrationEmployee(editing._id, payload);
+      else await createMigrationEmployee(payload);
+      toast.success(editing ? "Employee updated" : "Employee added");
       onOpenChange(false);
       window.location.reload();
     } catch (error) {
@@ -92,7 +114,7 @@ export default function MigrationEmployeeDialog({ open, onOpenChange }: { open: 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
-        <DialogHeader><DialogTitle>New employee</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{editing ? "Edit employee" : "New employee"}</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <Input placeholder="Name *" value={name} onChange={(event) => setName(event.target.value)} />
@@ -123,7 +145,7 @@ export default function MigrationEmployeeDialog({ open, onOpenChange }: { open: 
         </div>
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => void submit()} disabled={saving}>{saving ? "Saving..." : "Add employee"}</Button>
+          <Button onClick={() => void submit()} disabled={saving}>{saving ? "Saving..." : editing ? "Save changes" : "Add employee"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
