@@ -211,7 +211,12 @@ export function downloadBookingConfirmation(data: BookingConfirmationData) {
       styles: { fontSize: 9, font: "helvetica" },
       headStyles: { fillColor: GREEN, textColor: [255, 255, 255] as [number, number, number] },
       footStyles: { fillColor: [240, 246, 244] as [number, number, number], textColor: DARK },
-      columnStyles: { 3: { halign: "right" as const } },
+      columnStyles: {
+        0: { cellWidth: 27 },
+        1: { cellWidth: 18 },
+        2: { cellWidth: 87 },
+        3: { cellWidth: 50, halign: "right" as const, overflow: "visible" as const },
+      },
       margin: { left: 14, right: 14 },
     });
     y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
