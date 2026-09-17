@@ -758,3 +758,70 @@ export async function importMigrationTallyVouchers(company: string, fromDate: st
   if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Tally voucher import failed (${response.status})`); }
   return response.json() as Promise<{ journalEntriesCreated: number; purchaseInvoicesCreated: number; skipped: number; skippedDetails: Array<{ voucherNumber: string; reason: string }> }>;
 }
+
+export type MigrationDocument = {
+  _id: string;
+  ownerId: string;
+  linkedType: "buyer" | "booking" | "project";
+  linkedId: string;
+  linkedName?: string;
+  fileName: string;
+  contentType?: string;
+  size?: number;
+  docType: string;
+  label?: string;
+  notes?: string;
+  uploadedAt: string;
+};
+
+export function listMigrationDocuments(options: { linkedType?: string; linkedId?: string; docType?: string; search?: string } = {}) {
+  const params = new URLSearchParams();
+  if (options.linkedType) params.set("linkedType", options.linkedType);
+  if (options.linkedId) params.set("linkedId", options.linkedId);
+  if (options.docType) params.set("docType", options.docType);
+  if (options.search) params.set("search", options.search);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  return migrationGet<MigrationDocument[]>(`/api/documents${query}`);
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).slice(String(reader.result).indexOf(",") + 1));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function uploadMigrationDocument(input: { linkedType: string; linkedId: string; linkedName?: string; file: File; docType: string; label?: string; notes?: string }) {
+  const dataBase64 = await fileToBase64(input.file);
+  const response = await fetch(`${apiUrl}/api/documents`, {
+    method: "POST",
+    headers: { ...await migrationHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({
+      linkedType: input.linkedType, linkedId: input.linkedId, linkedName: input.linkedName,
+      fileName: input.file.name, contentType: input.file.type, size: input.file.size,
+      docType: input.docType, label: input.label, notes: input.notes, dataBase64,
+    }),
+  });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Upload failed (${response.status})`); }
+  return response.json() as Promise<MigrationDocument>;
+}
+
+export async function updateMigrationDocument(documentId: string, input: { label?: string; docType?: string; notes?: string }) {
+  const response = await fetch(`${apiUrl}/api/documents/${encodeURIComponent(documentId)}`, { method: "PATCH", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Could not update document (${response.status})`); }
+  return response.json() as Promise<MigrationDocument>;
+}
+
+export async function deleteMigrationDocument(documentId: string) {
+  const response = await fetch(`${apiUrl}/api/documents/${encodeURIComponent(documentId)}`, { method: "DELETE", headers: await migrationHeaders() });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Could not delete document (${response.status})`); }
+  return response.status === 204 ? null : response.json();
+}
+
+export async function fetchMigrationDocumentBlob(documentId: string) {
+  const response = await fetch(`${apiUrl}/api/documents/${encodeURIComponent(documentId)}/download`, { headers: await migrationHeaders() });
+  if (!response.ok) throw new Error(`Could not download document (${response.status})`);
+  return response.blob();
+}

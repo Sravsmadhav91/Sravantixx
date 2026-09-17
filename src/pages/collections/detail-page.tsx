@@ -65,6 +65,7 @@ import InstallmentRow from "./_components/installment-row.tsx";
 import ReceiptRow from "./_components/receipt-row.tsx";
 import SendEmailDialog from "./_components/send-email-dialog.tsx";
 import DocumentPanel from "@/components/documents/document-panel.tsx";
+import MigrationDocumentPanel from "@/components/documents/migration-document-panel.tsx";
 import { migrationApiEnabled } from "@/lib/migration-api.ts";
 import { useMigrationStatement } from "@/hooks/use-migration-statement.ts";
 
@@ -217,10 +218,11 @@ export default function CollectionDetailPage() {
         carParkingCharges: stmt.booking.carParkingCharges,
         maintenanceFund: stmt.booking.maintenanceFund,
         corpusFund: stmt.booking.corpusFund,
-        installments: stmt.installments.map((i) => ({
-          milestone: i.milestone,
-          amount: i.amount,
-          dueDate: i.dueDate,
+        payments: [...stmt.receipts].sort((a, b) => a.paymentDate.localeCompare(b.paymentDate)).map((r) => ({
+          amount: r.amount,
+          date: r.paymentDate,
+          mode: r.paymentMode?.replace(/_/g, " "),
+          reference: r.referenceNumber,
         })),
       });
       downloadSaleAgreement(
@@ -565,7 +567,7 @@ export default function CollectionDetailPage() {
           <div className="flex gap-1 border-b border-border">
             {([
               { id: "schedule" as Tab, label: "Payment Schedule", icon: Receipt },
-              ...(!migrationApiEnabled ? [{ id: "documents" as Tab, label: "Documents", icon: FolderOpen }] : []),
+              ...([{ id: "documents" as Tab, label: "Documents", icon: FolderOpen }]),
             ] satisfies { id: Tab; label: string; icon: typeof Receipt }[]).map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -689,12 +691,20 @@ export default function CollectionDetailPage() {
           )}
           </>)}
 
-          {!migrationApiEnabled && tab === "documents" && (
-            <DocumentPanel
-              linkedType="booking"
-              linkedId={bookingId}
-              linkedName={stmt.buyer?.name ? `${stmt.unit?.projectName ?? ""} · ${stmt.unit?.number ?? ""} (${stmt.buyer.name})` : undefined}
-            />
+          {tab === "documents" && (
+            migrationApiEnabled ? (
+              <MigrationDocumentPanel
+                linkedType="booking"
+                linkedId={bookingId}
+                linkedName={stmt.buyer?.name ? `${stmt.unit?.projectName ?? ""} · ${stmt.unit?.number ?? ""} (${stmt.buyer.name})` : undefined}
+              />
+            ) : (
+              <DocumentPanel
+                linkedType="booking"
+                linkedId={bookingId}
+                linkedName={stmt.buyer?.name ? `${stmt.unit?.projectName ?? ""} · ${stmt.unit?.number ?? ""} (${stmt.buyer.name})` : undefined}
+              />
+            )
           )}
 
           {!migrationApiEnabled && <AddInstallmentDialog

@@ -71,6 +71,7 @@ function EditableBookingRow({ booking, showBuyer }: BookingRowProps) {
   const approveBooking = useMutation(api.bookings.approveBooking);
   const rejectBooking = useMutation(api.bookings.rejectBooking);
   const project = useQuery(api.projects.get, { projectId: booking.unit.projectId });
+  const receipts = useQuery(api.payments.listReceipts, { bookingId: booking._id });
   const allBuyers = useQuery(api.buyers.list, manageCoBuyersOpen ? {} : "skip");
 
   // Local state for co-buyer editing
@@ -175,6 +176,12 @@ function EditableBookingRow({ booking, showBuyer }: BookingRowProps) {
         carParkingCharges: booking.carParkingCharges,
         maintenanceFund: booking.maintenanceFund,
         corpusFund: booking.corpusFund,
+        payments: (receipts ?? []).slice().sort((a, b) => a.paymentDate.localeCompare(b.paymentDate)).map((r) => ({
+          amount: r.amount,
+          date: r.paymentDate,
+          mode: r.paymentMode?.replace(/_/g, " "),
+          reference: r.referenceNumber,
+        })),
       });
       downloadSaleAgreement(blob, booking.buyer.name, booking.unit.number);
       toast.success("Sale Agreement downloaded");

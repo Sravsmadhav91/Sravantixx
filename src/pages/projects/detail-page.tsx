@@ -67,6 +67,7 @@ import BulkUnitsDialog from "./_components/bulk-units-dialog.tsx";
 import MigrationUnitFormDialog from "./_components/migration-unit-form-dialog.tsx";
 import UnitInventory from "./_components/unit-inventory.tsx";
 import DocumentPanel from "@/components/documents/document-panel.tsx";
+import MigrationDocumentPanel from "@/components/documents/migration-document-panel.tsx";
 import { FolderOpen } from "lucide-react";
 
 type StatusFilter = Doc<"units">["status"] | "all";
@@ -346,17 +347,25 @@ function ConvexProjectDetailPage() {
             />
           )}
 
-          {!migrationApiEnabled && <div className="space-y-3">
+          <div className="space-y-3">
             <h2 className="flex items-center gap-2 text-lg font-semibold">
               <FolderOpen className="size-5 text-muted-foreground" />
               Documents
             </h2>
-            <DocumentPanel
-              linkedType="project"
-              linkedId={projectId}
-              linkedName={displayedProject.name}
-            />
-          </div>}
+            {migrationApiEnabled ? (
+              <MigrationDocumentPanel
+                linkedType="project"
+                linkedId={projectId}
+                linkedName={displayedProject.name}
+              />
+            ) : (
+              <DocumentPanel
+                linkedType="project"
+                linkedId={projectId}
+                linkedName={displayedProject.name}
+              />
+            )}
+          </div>
 
           {migrationApiEnabled && projectId && <MigrationUnitFormDialog open={migrationUnitDialogOpen} onOpenChange={setMigrationUnitDialogOpen} projectId={projectId} />}
           {!migrationApiEnabled && <ProjectFormDialog

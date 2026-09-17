@@ -29,6 +29,7 @@ import BookingRow from "./_components/booking-row.tsx";
 import ActivityTimeline from "@/components/crm/activity-timeline.tsx";
 import TaskList from "@/components/crm/task-list.tsx";
 import DocumentPanel from "@/components/documents/document-panel.tsx";
+import MigrationDocumentPanel from "@/components/documents/migration-document-panel.tsx";
 import { cn } from "@/lib/utils.ts";
 import { migrationApiEnabled } from "@/lib/migration-api.ts";
 import { useMigrationBuyerDetail } from "@/hooks/use-migration-buyer-detail.ts";
@@ -73,8 +74,8 @@ export default function BuyerDetailPage() {
     ...(!migrationApiEnabled ? [
       { id: "activity" as const, label: "Activity", icon: History },
       { id: "tasks" as const, label: "Tasks", icon: ClipboardList },
-      { id: "documents" as const, label: "Documents", icon: FolderOpen },
     ] : []),
+    { id: "documents" as const, label: "Documents", icon: FolderOpen },
   ];
 
   return (
@@ -210,12 +211,20 @@ export default function BuyerDetailPage() {
             />
           )}
 
-          {!migrationApiEnabled && tab === "documents" && (
-            <DocumentPanel
-              linkedType="buyer"
-              linkedId={buyerId}
-              linkedName={displayedBuyer.name}
-            />
+          {tab === "documents" && (
+            migrationApiEnabled ? (
+              <MigrationDocumentPanel
+                linkedType="buyer"
+                linkedId={buyerId}
+                linkedName={displayedBuyer.name}
+              />
+            ) : (
+              <DocumentPanel
+                linkedType="buyer"
+                linkedId={buyerId}
+                linkedName={displayedBuyer.name}
+              />
+            )
           )}
 
           {!migrationApiEnabled && <BuyerFormDialog open={editOpen} onOpenChange={setEditOpen} buyer={buyer} />}

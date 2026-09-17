@@ -1,7 +1,8 @@
 import { ConvexError, v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { mutation, query } from "./_generated/server";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { QueryCtx } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { requireUser, effectiveOwnerId } from "./lib/auth.ts";
 import { requireModuleAccess } from "./lib/rbac.ts";
 
@@ -10,18 +11,22 @@ export type BookingWithDetails = Doc<"bookings"> & {
   /** All buyers: primary first, then co-buyers */
   allBuyers: Doc<"buyers">[];
   unit: Doc<"units"> & { projectName: string };
+  /** Sum of all receipts recorded against this booking. */
+  totalReceived: number;
 };
 
-/** Fetch and attach co-buyer docs to a booking */
+/** Fetch and attach co-buyer docs + total-received to a booking */
 async function enrichBooking(
-  ctx: { db: { get: (table: "buyers", id: Id<"buyers">) => Promise<Doc<"buyers"> | null> } },
+  ctx: QueryCtx,
   booking: Doc<"bookings"> & { buyer: Doc<"buyers">; unit: Doc<"units"> & { projectName: string } },
 ): Promise<BookingWithDetails> {
   const coIds = booking.coBuyerIds ?? [];
-  const coBuyers = (
-    await Promise.all(coIds.map((id) => ctx.db.get("buyers", id)))
-  ).filter((b): b is Doc<"buyers"> => b !== null);
-  return { ...booking, allBuyers: [booking.buyer, ...coBuyers] };
+  const [coBuyers, receipts] = await Promise.all([
+    Promise.all(coIds.map((id) => ctx.db.get("buyers", id))).then((docs) => docs.filter((b): b is Doc<"buyers"> => b !== null)),
+    ctx.db.query("receipts").withIndex("by_booking", (q) => q.eq("bookingId", booking._id)).collect(),
+  ]);
+  const totalReceived = receipts.reduce((sum, receipt) => sum + receipt.amount, 0);
+  return { ...booking, allBuyers: [booking.buyer, ...coBuyers], totalReceived };
 }
 
 export const list = query({
