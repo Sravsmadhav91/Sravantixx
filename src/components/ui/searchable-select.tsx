@@ -59,6 +59,8 @@ type Props = {
   /** Show a trailing "+ Create new…" row that calls this instead of selecting an option */
   onCreateNew?: () => void;
   createNewLabel?: string;
+  /** Require at least one character before listing options. */
+  requireSearch?: boolean;
 };
 
 export function SearchableSelect({
@@ -76,8 +78,10 @@ export function SearchableSelect({
   clearLabel = "None",
   onCreateNew,
   createNewLabel = "Create new…",
+  requireSearch = true,
 }: Props) {
   const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
 
   const selected = options.find((o) => o.value === value);
 
@@ -86,8 +90,13 @@ export function SearchableSelect({
     setOpen(false);
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen) setSearch("");
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -113,7 +122,9 @@ export function SearchableSelect({
         sideOffset={4}
       >
         <Command
+          onValueChange={setSearch}
           filter={(itemValue, search) => {
+            if (requireSearch && search.trim() === "") return 0;
             const opt = options.find((o) => o.value === itemValue);
             if (!opt) return 0;
             const hay = [opt.label, opt.sub, opt.keywords, opt.value]
@@ -123,9 +134,9 @@ export function SearchableSelect({
             return hay.includes(search.toLowerCase()) ? 1 : 0;
           }}
         >
-          <CommandInput placeholder={searchPlaceholder} />
+          <CommandInput placeholder={requireSearch ? `${searchPlaceholder} (type to search)` : searchPlaceholder} />
           <CommandList>
-            <CommandEmpty>{emptyText}</CommandEmpty>
+            <CommandEmpty>{requireSearch && search.trim() === "" ? "Type to search" : emptyText}</CommandEmpty>
             <CommandGroup>
               {allowClear && (
                 <CommandItem
