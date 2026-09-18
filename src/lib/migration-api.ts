@@ -626,6 +626,12 @@ export async function createMigrationJournalEntry(input: Record<string, unknown>
   return response.json();
 }
 
+export async function assignAllMigrationAccountingToProject(projectId: string) {
+  const response = await fetch(`${apiUrl}/api/accounting/assign-all-to-project`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ projectId }) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json() as Promise<{ projectId: string; invoices: number; journalEntries: number; journalLines: number }>;
+}
+
 export type MigrationTopBuyer = {
   buyerId: string;
   buyerName: string;

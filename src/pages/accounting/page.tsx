@@ -243,6 +243,7 @@ function MigrationAccountingPage() {
   const entries = useMigrationFinance<any[]>(
     "/api/tables/journalEntries/records",
   );
+  const projects = useMigrationFinance<Array<{ _id: string; name: string }>>("/api/projects");
   const journalLines = useMigrationFinance<any[]>(
     "/api/tables/journalLines/records",
   );
@@ -319,6 +320,16 @@ function MigrationAccountingPage() {
           : "Could not update journal entry",
       );
     }
+  };
+  const assignEntryProject = async (entry: any) => {
+    if (!isOwner) return;
+    const currentProject = projects?.find((project) => project._id === entry.projectId);
+    const projectName = window.prompt("Project name (leave blank to unlink)", currentProject?.name ?? "");
+    if (projectName === null) return;
+    const project = projects?.find((item) => item.name.trim().toLowerCase() === projectName.trim().toLowerCase());
+    if (projectName.trim() && !project) { toast.error("Project not found. Enter an exact project name."); return; }
+    try { await updateMigrationJournalEntry(entry._id, { projectId: project?._id }); toast.success("Project assignment updated"); window.location.reload(); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Could not assign project"); }
   };
   const accountGroups = ["asset", "liability", "income", "expense", "equity"];
   return (
@@ -602,6 +613,7 @@ function MigrationAccountingPage() {
                       </Badge>
                       {isOwner && (
                         <>
+                          <Button size="sm" variant="ghost" onClick={() => void assignEntryProject(entry)}>Project</Button>
                           <Button
                             size="sm"
                             variant="ghost"

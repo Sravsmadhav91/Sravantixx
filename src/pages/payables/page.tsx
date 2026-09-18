@@ -149,6 +149,15 @@ function MigrationPayablesPage() {
     try { await updateMigrationPurchaseInvoice(invoice._id, { invoiceNumber, date, projectId: project?._id }); toast.success("Draft invoice updated"); window.location.reload(); }
     catch (error) { toast.error(error instanceof Error ? error.message : "Could not update draft invoice"); }
   };
+  const assignInvoiceProject = async (invoice: MigrationPurchaseInvoice) => {
+    const currentProject = projects?.find((project) => project._id === invoice.projectId);
+    const projectName = window.prompt("Project name (leave blank to unlink)", currentProject?.name ?? "");
+    if (projectName === null) return;
+    const project = projects?.find((item) => item.name.trim().toLowerCase() === projectName.trim().toLowerCase());
+    if (projectName.trim() && !project) { toast.error("Project not found. Enter an exact project name."); return; }
+    try { await updateMigrationPurchaseInvoice(invoice._id, { projectId: project?._id }); toast.success("Project assignment updated"); window.location.reload(); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Could not assign project"); }
+  };
   const approveDraft = async (invoice: MigrationPurchaseInvoice) => {
     if (!window.confirm(`Approve ${invoice.internalRef}? This will create its journal entry.`)) return;
     try { await postMigrationPurchaseInvoice(invoice._id); toast.success("Invoice approved and posted"); window.location.reload(); }
@@ -375,7 +384,7 @@ function MigrationPayablesPage() {
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        {inv.status === "draft" && <div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => void editDraft(inv)} aria-label="Edit draft invoice"><Pencil className="size-3.5" /></Button><Button size="sm" variant="ghost" onClick={() => void approveDraft(inv)} aria-label="Approve draft invoice"><CheckCircle className="size-3.5 text-primary" /></Button><Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deleteDraft(inv)} aria-label="Delete draft invoice"><XCircle className="size-3.5" /></Button></div>}
+                        <div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => void assignInvoiceProject(inv)} aria-label="Assign project">Project</Button>{inv.status === "draft" && <><Button size="sm" variant="ghost" onClick={() => void editDraft(inv)} aria-label="Edit draft invoice"><Pencil className="size-3.5" /></Button><Button size="sm" variant="ghost" onClick={() => void approveDraft(inv)} aria-label="Approve draft invoice"><CheckCircle className="size-3.5 text-primary" /></Button><Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deleteDraft(inv)} aria-label="Delete draft invoice"><XCircle className="size-3.5" /></Button></>}</div>
                       </td>
                     </tr>
                   ))}
