@@ -288,7 +288,17 @@ function MobileBottomNav() {
 
 function SignedInShell() {
   const { isStaff, isScoped, role } = useRole();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    if (role === "customer" && !location.pathname.startsWith("/portal")) {
+      navigate("/portal", { replace: true });
+    }
+  }, [location.pathname, navigate, role]);
+
+  if (role === "customer") return null;
 
   // Cmd+K / Ctrl+K shortcut
   useEffect(() => {

@@ -3,7 +3,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api.js";
 import { migrationApiEnabled, migrationGet } from "@/lib/migration-api.ts";
 
-export type UserRole = "owner" | "staff" | "accountant" | "sales" | "site_engineer" | "site_supervisor" | "project_manager";
+export type UserRole = "owner" | "customer" | "staff" | "accountant" | "sales" | "site_engineer" | "site_supervisor" | "project_manager";
 
 /** Modules each scoped role can access. Mirrors convex/lib/rbac.ts — keep in sync. */
 const SCOPED_ROLE_MODULES: Record<"accountant" | "sales" | "site_engineer" | "site_supervisor" | "project_manager", string[]> = {
