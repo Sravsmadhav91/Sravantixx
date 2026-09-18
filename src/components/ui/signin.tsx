@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { buttonVariants } from "@/components/ui/button.tsx";
+import Logo from "@/components/logo.tsx";
 
 export interface SignInButtonProps
   extends
@@ -145,11 +146,7 @@ export const SignInButton = forwardRef<HTMLButtonElement, SignInButtonProps>(
         <DialogContent className="overflow-hidden border-border/80 bg-background p-0 shadow-2xl sm:max-w-md">
           <div className="border-b border-emerald-900/10 bg-emerald-50 px-6 pb-5 pt-7 dark:bg-emerald-950/30">
             <div className="mb-6 flex items-start justify-between gap-4">
-              <div className="relative flex size-11 items-center justify-center rounded-xl bg-emerald-700 text-white shadow-sm">
-                <LogIn className="size-5" />
-                <span className="absolute -right-1 -top-1 size-2 rounded-full bg-amber-400" />
-                <span className="absolute -bottom-1 -left-1 size-2 rounded-full bg-sky-400" />
-              </div>
+              <Logo className="[&_img]:h-12" />
               <span className="rounded-full border border-amber-300/70 bg-amber-100 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/50 dark:text-amber-200">
                 Secure access
               </span>
