@@ -60,7 +60,15 @@ function MigrationLeadsPage() {
     projectInterest: "",
     notes: "",
     lastFollowUpAt: "",
+    assignedExecutive: "",
+    qualificationScore: "",
+    budgetFit: "medium",
+    timelineFit: "medium",
+    interestLevel: "medium",
+    lostReason: "",
   });
+  const leadScore = (lead: any) => Number(lead.qualificationScore || (lead.status === "won" ? 100 : lead.status === "negotiation" ? 80 : lead.status === "site_visit" ? 70 : lead.status === "contacted" ? 50 : lead.status === "lost" ? 0 : 30));
+  const leadTemperature = (score: number) => score >= 70 ? "Hot" : score >= 45 ? "Warm" : "New";
   const resetForm = (lead?: any) =>
     setForm({
       name: lead?.name ?? "",
@@ -74,6 +82,12 @@ function MigrationLeadsPage() {
       lastFollowUpAt: lead?.lastFollowUpAt
         ? String(lead.lastFollowUpAt).slice(0, 10)
         : "",
+      assignedExecutive: lead?.assignedExecutive ?? lead?.assignedToName ?? "",
+      qualificationScore: lead?.qualificationScore ? String(lead.qualificationScore) : "",
+      budgetFit: lead?.budgetFit ?? "medium",
+      timelineFit: lead?.timelineFit ?? "medium",
+      interestLevel: lead?.interestLevel ?? "medium",
+      lostReason: lead?.lostReason ?? "",
     });
   const openAdd = () => {
     resetForm();
@@ -94,6 +108,7 @@ function MigrationLeadsPage() {
       const payload = {
         ...form,
         budget: form.budget ? Number(form.budget) : undefined,
+        qualificationScore: form.qualificationScore ? Number(form.qualificationScore) : undefined,
         lastFollowUpAt: form.lastFollowUpAt || undefined,
       };
       if (editingLead) {
@@ -145,6 +160,15 @@ function MigrationLeadsPage() {
       );
     }
   };
+  const logInteraction = async (lead: any, interactionType: string) => {
+    const remarks = window.prompt(`${interactionType} remarks`, "");
+    if (remarks === null) return;
+    const nextFollowUp = window.prompt("Next follow-up date (YYYY-MM-DD)", lead.lastFollowUpAt ? String(lead.lastFollowUpAt).slice(0, 10) : today);
+    if (nextFollowUp === null) return;
+    const interaction = { interactionType, date: new Date().toISOString(), remarks, nextFollowUp: nextFollowUp || undefined };
+    try { await updateMigrationLead(lead._id, { interactions: [interaction, ...(lead.interactions || [])], lastFollowUpAt: nextFollowUp || lead.lastFollowUpAt }); toast.success("Interaction logged"); window.location.reload(); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Could not log interaction"); }
+  };
   const counts = ALL_STATUSES.reduce<Record<string, number>>(
     (result, value) => {
       result[value] =
@@ -163,6 +187,11 @@ function MigrationLeadsPage() {
       !followUpsToday ||
       String(lead.lastFollowUpAt || "").slice(0, 10) === today,
   );
+  const wonCount = leads?.filter((lead) => lead.status === "won" || lead.convertedBuyerId).length ?? 0;
+  const conversionRate = leads?.length ? Math.round((wonCount / leads.length) * 100) : 0;
+  const averageScore = leads?.length ? Math.round(leads.reduce((sum, lead) => sum + leadScore(lead), 0) / leads.length) : 0;
+  const missedFollowUps = leads?.filter((lead) => lead.status !== "won" && lead.status !== "lost" && lead.lastFollowUpAt && String(lead.lastFollowUpAt).slice(0, 10) < today).length ?? 0;
+  const sourceStats = Object.entries((leads ?? []).reduce<Record<string, { total: number; won: number }>>((acc, lead) => { const source = lead.source || "other"; acc[source] ??= { total: 0, won: 0 }; acc[source].total += 1; if (lead.status === "won" || lead.convertedBuyerId) acc[source].won += 1; return acc; }, {}));
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 p-4 md:p-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -225,6 +254,7 @@ function MigrationLeadsPage() {
           </button>
         </div>
       )}
+      {leads && <div className="grid gap-3 md:grid-cols-4"><div className="rounded-lg border bg-card px-4 py-3"><p className="text-xs text-muted-foreground">Conversion</p><p className="text-2xl font-semibold text-primary">{conversionRate}%</p><p className="text-xs text-muted-foreground">{wonCount} won / converted</p></div><div className="rounded-lg border bg-card px-4 py-3"><p className="text-xs text-muted-foreground">Avg qualification</p><p className="text-2xl font-semibold">{averageScore}%</p><p className="text-xs text-muted-foreground">Budget, timeline, interest fit</p></div><div className="rounded-lg border bg-card px-4 py-3"><p className="text-xs text-muted-foreground">Missed follow-ups</p><p className={cn("text-2xl font-semibold", missedFollowUps > 0 && "text-destructive")}>{missedFollowUps}</p><p className="text-xs text-muted-foreground">Open leads past follow-up date</p></div><div className="rounded-lg border bg-card px-4 py-3"><p className="text-xs text-muted-foreground">Top source</p><p className="text-lg font-semibold">{sourceStats.sort((a, b) => b[1].total - a[1].total)[0]?.[0]?.replaceAll("_", " ") ?? "—"}</p><p className="text-xs text-muted-foreground">By lead volume</p></div></div>}
       <div className="flex flex-wrap items-center gap-3">
         <Input
           placeholder="Search by name or mobile..."
@@ -250,8 +280,10 @@ function MigrationLeadsPage() {
                 <th className="px-4 py-3">Project interest</th>
                 <th className="px-4 py-3">Source</th>
                 <th className="px-4 py-3">Budget</th>
+                <th className="px-4 py-3">Score</th>
+                <th className="px-4 py-3">Next follow-up</th>
+                <th className="px-4 py-3">Assigned</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Last follow-up</th>
                 <th className="px-4 py-3">Action</th>
               </tr>
             </thead>
@@ -294,6 +326,9 @@ function MigrationLeadsPage() {
                       ? `₹${Number(lead.budget).toLocaleString("en-IN")}`
                       : "-"}
                   </td>
+                  <td className="px-4 py-3"><span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", leadScore(lead) >= 70 ? "bg-emerald-500/10 text-emerald-700" : leadScore(lead) >= 45 ? "bg-amber-500/10 text-amber-700" : "bg-blue-500/10 text-blue-700")}>{leadTemperature(leadScore(lead))} · {leadScore(lead)}%</span></td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{lead.lastFollowUpAt ? new Date(lead.lastFollowUpAt).toLocaleDateString("en-IN") : "-"}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{lead.assignedExecutive || lead.assignedToName || "Unassigned"}</td>
                   <td className="px-4 py-3">
                     <select
                       aria-label={`Status for ${lead.name}`}
@@ -313,17 +348,6 @@ function MigrationLeadsPage() {
                       ))}
                     </select>
                   </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {lead.lastFollowUpAt
-                      ? new Date(lead.lastFollowUpAt).toLocaleDateString(
-                          "en-IN",
-                        )
-                      : lead.lastActivityAt
-                        ? new Date(lead.lastActivityAt).toLocaleDateString(
-                            "en-IN",
-                          )
-                        : "-"}
-                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
                       <Button
@@ -337,6 +361,8 @@ function MigrationLeadsPage() {
                           <Phone className="size-4" />
                         </a>
                       </Button>
+                      <Button variant="ghost" size="sm" className="h-8" onClick={() => void logInteraction(lead, "Call")}>Log</Button>
+                      <Button variant="ghost" size="sm" className="h-8" onClick={() => void logInteraction(lead, "Site Visit")}>Visit</Button>
                       {lead.convertedBuyerId ? (
                         <Button asChild variant="secondary" size="sm">
                           <a href={`/buyers/${lead.convertedBuyerId}`}>Buyer</a>
@@ -453,6 +479,9 @@ function MigrationLeadsPage() {
                 setForm({ ...form, projectInterest: e.target.value })
               }
             />
+            <div className="grid gap-3 sm:grid-cols-2"><Input placeholder="Assigned executive" value={form.assignedExecutive} onChange={(e) => setForm({ ...form, assignedExecutive: e.target.value })} /><Input type="number" min="0" max="100" placeholder="Qualification score (%)" value={form.qualificationScore} onChange={(e) => setForm({ ...form, qualificationScore: e.target.value })} /></div>
+            <div className="grid gap-3 sm:grid-cols-3"><select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={form.budgetFit} onChange={(e) => setForm({ ...form, budgetFit: e.target.value })}><option value="high">Budget fit: High</option><option value="medium">Budget fit: Medium</option><option value="low">Budget fit: Low</option></select><select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={form.timelineFit} onChange={(e) => setForm({ ...form, timelineFit: e.target.value })}><option value="high">Timeline fit: High</option><option value="medium">Timeline fit: Medium</option><option value="low">Timeline fit: Low</option></select><select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={form.interestLevel} onChange={(e) => setForm({ ...form, interestLevel: e.target.value })}><option value="high">Interest: High</option><option value="medium">Interest: Medium</option><option value="low">Interest: Low</option></select></div>
+            {form.status === "lost" && <Input placeholder="Lost reason" value={form.lostReason} onChange={(e) => setForm({ ...form, lostReason: e.target.value })} />}
             <textarea
               className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               placeholder="Notes"

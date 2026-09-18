@@ -6,6 +6,7 @@ import { TrendingDown, TrendingUp } from "lucide-react";
 import { api } from "@/convex/_generated/api.js";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Input } from "@/components/ui/input.tsx";
+import { SearchableSelect } from "@/components/ui/searchable-select.tsx";
 import { Skeleton } from "@/components/ui/skeleton.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import {
@@ -21,6 +22,9 @@ import { formatCompactInr } from "@/lib/real-estate.ts";
 import { formatDate } from "@/lib/format.ts";
 import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_COLORS, ACCOUNT_GROUP_LABELS } from "@/lib/accounting.ts";
 import { migrationApiEnabled, migrationGet } from "@/lib/migration-api.ts";
+import { updateMigrationJournalEntry } from "@/lib/migration-api.ts";
+import { Button } from "@/components/ui/button.tsx";
+import { toast } from "sonner";
 import PageHeader from "@/components/page-header.tsx";
 
 export default function AccountLedgerPage() {
@@ -43,6 +47,11 @@ function MigrationLedgerPage() {
   const [fromDate, setFromDate] = useState(`${thisYear}-04-01`);
   const [toDate, setToDate] = useState(new Date().toISOString().slice(0, 10));
   const [ledger, setLedger] = useState<any | null | undefined>(undefined);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [search, setSearch] = useState("");
+  const [side, setSide] = useState("all");
+  const [editingRow, setEditingRow] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ date: "", narration: "", reference: "", debitAccountId: "", creditAccountId: "", amount: "" });
 
   useEffect(() => {
     if (!accountId) {
@@ -69,6 +78,14 @@ function MigrationLedgerPage() {
     };
   }, [accountId, fromDate, toDate]);
 
+  useEffect(() => {
+    let active = true;
+    migrationGet<any[]>("/api/accounting/accounts")
+      .then((value) => { if (active) setAccounts(value); })
+      .catch(() => { if (active) setAccounts([]); });
+    return () => { active = false; };
+  }, []);
+
   if (!accountId) {
     return <div className="p-8 text-muted-foreground">Invalid account.</div>;
   }
@@ -90,6 +107,10 @@ function MigrationLedgerPage() {
 
   const accountType = String(ledger.account.type) as keyof typeof ACCOUNT_TYPE_LABELS;
   const accountGroup = String(ledger.account.group) as keyof typeof ACCOUNT_GROUP_LABELS;
+  const filteredRows = ledger.rows.filter((row: any) => (!search.trim() || `${row.narration ?? ""} ${row.reference ?? ""} ${row.entryNumber ?? ""} ${row.debitAccountName ?? ""} ${row.creditAccountName ?? ""}`.toLowerCase().includes(search.trim().toLowerCase())) && (side === "all" || (side === "debit" ? row.debit > 0 : row.credit > 0)));
+  const openEdit = (row: any) => { setEditingRow(row); setEditForm({ date: String(row.date || "").slice(0, 10), narration: row.narration || "", reference: row.reference || "", debitAccountId: row.debitAccountId || "", creditAccountId: row.creditAccountId || "", amount: String(row.amount || row.debit || row.credit || "") }); };
+  const saveEdit = async () => { if (!editingRow) return; try { await updateMigrationJournalEntry(editingRow.entryId, { ...editForm, amount: Number(editForm.amount) }); toast.success("Transaction updated"); setEditingRow(null); window.location.reload(); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not update transaction"); } };
+  const accountOptions = accounts.map((account: any) => ({ value: account._id, label: `${account.name}`, sub: `${account.code} · ${String(account.group || "").replaceAll("_", " ")}`, keywords: `${account.code} ${account.name} ${account.group}` }));
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 p-4 md:p-8">
@@ -102,6 +123,8 @@ function MigrationLedgerPage() {
         <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-36" />
         <span className="text-muted-foreground text-sm">to</span>
         <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-36" />
+        <Input placeholder="Search transactions..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-56" />
+        <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={side} onChange={(e) => setSide(e.target.value)}><option value="all">All</option><option value="debit">Debit only</option><option value="credit">Credit only</option></select>
       </div>
 
       <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-4 py-3">
@@ -125,7 +148,7 @@ function MigrationLedgerPage() {
         </div>
       </div>
 
-      {ledger.rows.length === 0 ? (
+      {filteredRows.length === 0 ? (
         <Empty>
           <EmptyHeader>
             <EmptyMedia variant="icon"><ScrollText /></EmptyMedia>
@@ -145,6 +168,7 @@ function MigrationLedgerPage() {
                 <th className="px-3 py-2 text-right">Debit</th>
                 <th className="px-3 py-2 text-right">Credit</th>
                 <th className="px-3 py-2 text-right">Balance</th>
+                <th className="px-3 py-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -154,7 +178,7 @@ function MigrationLedgerPage() {
                   {formatCompactInr(ledger.openingBalance)}
                 </td>
               </tr>
-              {ledger.rows.map((row: any, idx: number) => (
+              {filteredRows.map((row: any, idx: number) => (
                 <tr key={idx} className="hover:bg-muted/30">
                   <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">{formatDate(row.date)}</td>
                   <td className="px-3 py-2 font-mono text-xs">{row.entryNumber}</td>
@@ -170,6 +194,7 @@ function MigrationLedgerPage() {
                     {formatCompactInr(Math.abs(row.balance))}
                     {row.balance < 0 && " Cr"}
                   </td>
+                  <td className="px-3 py-2 text-right"><Button size="sm" variant="ghost" onClick={() => openEdit(row)}>Edit</Button></td>
                 </tr>
               ))}
             </tbody>
@@ -177,10 +202,10 @@ function MigrationLedgerPage() {
               <tr className="border-t bg-muted/20 font-semibold text-sm">
                 <td colSpan={4} className="px-3 py-2 text-right text-muted-foreground">Totals</td>
                 <td className="px-3 py-2 text-right tabular-nums text-green-700 dark:text-green-400">
-                  {formatCompactInr(ledger.rows.reduce((s: number, r: any) => s + r.debit, 0))}
+                  {formatCompactInr(filteredRows.reduce((s: number, r: any) => s + r.debit, 0))}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums text-red-600 dark:text-red-400">
-                  {formatCompactInr(ledger.rows.reduce((s: number, r: any) => s + r.credit, 0))}
+                  {formatCompactInr(filteredRows.reduce((s: number, r: any) => s + r.credit, 0))}
                 </td>
                 <td className={cn("px-3 py-2 text-right tabular-nums", ledger.closingBalance < 0 && "text-destructive")}>
                   {formatCompactInr(Math.abs(ledger.closingBalance))}
@@ -191,6 +216,7 @@ function MigrationLedgerPage() {
           </table>
         </div>
       )}
+      {editingRow && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><div className="w-full max-w-5xl space-y-3 rounded-lg bg-card p-6 lg:w-[65vw]"><h2 className="text-lg font-semibold">Edit transaction</h2><Input type="date" value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} /><Input placeholder="Narration" value={editForm.narration} onChange={(e) => setEditForm({ ...editForm, narration: e.target.value })} /><Input placeholder="Reference" value={editForm.reference} onChange={(e) => setEditForm({ ...editForm, reference: e.target.value })} /><div className="grid gap-3 md:grid-cols-2"><SearchableSelect value={editForm.debitAccountId} onValueChange={(value) => setEditForm({ ...editForm, debitAccountId: value })} options={accountOptions} placeholder="Debit account..." searchPlaceholder="Search debit ledger" /><SearchableSelect value={editForm.creditAccountId} onValueChange={(value) => setEditForm({ ...editForm, creditAccountId: value })} options={accountOptions} placeholder="Credit account..." searchPlaceholder="Search credit ledger" /></div><Input type="number" placeholder="Amount" value={editForm.amount} onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })} /><div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setEditingRow(null)}>Cancel</Button><Button onClick={() => void saveEdit()}>Save</Button></div></div></div>}
     </div>
   );
 }

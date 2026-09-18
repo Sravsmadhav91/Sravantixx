@@ -6,8 +6,9 @@ import type { ParseResult } from "@/lib/bank-parser.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { Input } from "@/components/ui/input.tsx";
+import { SearchableSelect } from "@/components/ui/searchable-select.tsx";
 
-type Account = { _id: string; name: string };
+type Account = { _id: string; code?: string; name: string; type?: string; group?: string };
 
 export default function MigrationImportStatementDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -50,5 +51,7 @@ export default function MigrationImportStatementDialog({ open, onOpenChange }: {
     }
   };
 
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-xl"><DialogHeader><DialogTitle>Import Bank Statement</DialogTitle></DialogHeader><div className="space-y-4"><select className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" value={accountId} onChange={(event) => setAccountId(event.target.value)}><option value="">Select bank account *</option>{accounts.filter((account) => account.name).map((account) => <option key={account._id} value={account._id}>{account.name}</option>)}</select><Input type="file" accept=".csv,.xlsx,.xls,.ods,.pdf,.txt" onChange={(event) => event.target.files?.[0] && void parseFile(event.target.files[0])} />{file && <p className="text-xs text-muted-foreground">{file.name}{parsed ? ` · ${parsed.transactions.length} transactions · ${parsed.bankFormat}` : ""}</p>}{parsed && parsed.errors.length > 0 && <p className="text-xs text-amber-600">{parsed.errors.join("; ")}</p>}</div><DialogFooter><Button variant="secondary" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={() => void submit()} disabled={loading || !parsed?.transactions.length}>{loading ? "Importing..." : "Import Statement"}</Button></DialogFooter></DialogContent></Dialog>;
+  const allowedGroups = new Set(["bank_and_cash", "loans", "current_liabilities", "payables"]);
+  const accountOptions = accounts.filter((account) => account.name && (allowedGroups.has(String(account.group || "")) || account.type === "liability")).map((account) => ({ value: account._id, label: account.name, sub: `${account.code || ""}${account.code ? " · " : ""}${String(account.group || account.type || "").replaceAll("_", " ")}`, keywords: `${account.code || ""} ${account.name} ${account.group || ""} ${account.type || ""}` }));
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-w-xl"><DialogHeader><DialogTitle>Import Bank Statement</DialogTitle></DialogHeader><div className="space-y-4"><SearchableSelect value={accountId} onValueChange={setAccountId} options={accountOptions} placeholder="Select bank / loan / liability ledger *" searchPlaceholder="Search ledger by name, code, or group" emptyText="No bank, loan, or liability ledgers found" /><Input type="file" accept=".csv,.xlsx,.xls,.ods,.pdf,.txt" onChange={(event) => event.target.files?.[0] && void parseFile(event.target.files[0])} />{file && <p className="text-xs text-muted-foreground">{file.name}{parsed ? ` · ${parsed.transactions.length} transactions · ${parsed.bankFormat}` : ""}</p>}{parsed && parsed.errors.length > 0 && <p className="text-xs text-amber-600">{parsed.errors.join("; ")}</p>}</div><DialogFooter><Button variant="secondary" onClick={() => onOpenChange(false)}>Cancel</Button><Button onClick={() => void submit()} disabled={loading || !parsed?.transactions.length}>{loading ? "Importing..." : "Import Statement"}</Button></DialogFooter></DialogContent></Dialog>;
 }

@@ -22,6 +22,7 @@ import { api } from "@/convex/_generated/api.js";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
+import { SearchableSelect } from "@/components/ui/searchable-select.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import {
   Card,
@@ -243,7 +244,8 @@ function MigrationAccountingPage() {
   const entries = useMigrationFinance<any[]>(
     "/api/tables/journalEntries/records",
   );
-  const projects = useMigrationFinance<Array<{ _id: string; name: string }>>("/api/projects");
+  const projects =
+    useMigrationFinance<Array<{ _id: string; name: string }>>("/api/projects");
   const journalLines = useMigrationFinance<any[]>(
     "/api/tables/journalLines/records",
   );
@@ -259,21 +261,62 @@ function MigrationAccountingPage() {
   const [entryLedger, setEntryLedger] = useState("all");
   const [entryVoucherType, setEntryVoucherType] = useState("all");
   const [entryStatus, setEntryStatus] = useState("all");
-  const ledgerOptions = (accounts ?? []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
-  const entryYears = [...new Set((entries ?? []).map((entry) => String(entry.date || "").slice(0, 4)).filter(Boolean))].sort().reverse();
+  const [editingEntry, setEditingEntry] = useState<any | null>(null);
+  const [entryEditForm, setEntryEditForm] = useState({
+    date: "",
+    narration: "",
+    reference: "",
+    projectId: "",
+    lines: [] as Array<{
+      accountId: string;
+      side: "debit" | "credit";
+      amount: string;
+      narration?: string;
+    }>,
+  });
+  const ledgerOptions = (accounts ?? [])
+    .slice()
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const ledgerSelectOptions = ledgerOptions.map((account) => ({
+    value: account._id,
+    label: `${account.name}`,
+    sub: `${account.code} · ${String(account.group || "").replaceAll("_", " ")}`,
+    keywords: `${account.code} ${account.name} ${account.group}`,
+  }));
+  const entryYears = [
+    ...new Set(
+      (entries ?? [])
+        .map((entry) => String(entry.date || "").slice(0, 4))
+        .filter(Boolean),
+    ),
+  ]
+    .sort()
+    .reverse();
   const linesByEntry = new Map<string, any[]>();
-  for (const line of journalLines ?? []) linesByEntry.set(line.journalEntryId, [...(linesByEntry.get(line.journalEntryId) ?? []), line]);
-  const filteredEntries = (entries ?? []).filter((entry) => {
-    const date = String(entry.date || "");
-    const lines = linesByEntry.get(entry._id) ?? [];
-    const text = `${entry.entryNumber ?? ""} ${entry.narration ?? ""} ${entry.reference ?? ""}`.toLowerCase();
-    return (!entrySearch.trim() || text.includes(entrySearch.trim().toLowerCase())) &&
-      (entryMonth === "all" || date.slice(5, 7) === entryMonth) &&
-      (entryYear === "all" || date.slice(0, 4) === entryYear) &&
-      (entryLedger === "all" || lines.some((line) => line.accountId === entryLedger)) &&
-      (entryVoucherType === "all" || String(entry.voucherType || "manual") === entryVoucherType) &&
-      (entryStatus === "all" || entry.status === entryStatus);
-  }).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  for (const line of journalLines ?? [])
+    linesByEntry.set(line.journalEntryId, [
+      ...(linesByEntry.get(line.journalEntryId) ?? []),
+      line,
+    ]);
+  const filteredEntries = (entries ?? [])
+    .filter((entry) => {
+      const date = String(entry.date || "");
+      const lines = linesByEntry.get(entry._id) ?? [];
+      const text =
+        `${entry.entryNumber ?? ""} ${entry.narration ?? ""} ${entry.reference ?? ""}`.toLowerCase();
+      return (
+        (!entrySearch.trim() ||
+          text.includes(entrySearch.trim().toLowerCase())) &&
+        (entryMonth === "all" || date.slice(5, 7) === entryMonth) &&
+        (entryYear === "all" || date.slice(0, 4) === entryYear) &&
+        (entryLedger === "all" ||
+          lines.some((line) => line.accountId === entryLedger)) &&
+        (entryVoucherType === "all" ||
+          String(entry.voucherType || "manual") === entryVoucherType) &&
+        (entryStatus === "all" || entry.status === entryStatus)
+      );
+    })
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
   const { isOwner } = useRole();
   const removeAccount = async (account: any) => {
     if (!isOwner || !window.confirm(`Delete account ${account.name}?`)) return;
@@ -307,10 +350,40 @@ function MigrationAccountingPage() {
   };
   const editEntry = async (entry: any) => {
     if (!isOwner) return;
-    const narration = window.prompt("Narration", entry.narration || "");
-    if (narration === null) return;
+    const lines = linesByEntry.get(entry._id) ?? [];
+    setEditingEntry(entry);
+    setEntryEditForm({
+      date: String(entry.date || "").slice(0, 10),
+      narration: entry.narration || "",
+      reference: entry.reference || "",
+      projectId:
+        entry.projectId ||
+        lines.find((line) => line.projectId)?.projectId ||
+        "",
+      lines: lines.length
+        ? lines.map((line) => ({
+            accountId: line.accountId || "",
+            side: line.side === "credit" ? "credit" : "debit",
+            amount: String(line.amount || ""),
+            narration: line.narration || "",
+          }))
+        : [
+            { accountId: "", side: "debit", amount: "" },
+            { accountId: "", side: "credit", amount: "" },
+          ],
+    });
+  };
+  const saveEntryEdit = async () => {
+    if (!editingEntry) return;
     try {
-      await updateMigrationJournalEntry(entry._id, { narration });
+      await updateMigrationJournalEntry(editingEntry._id, {
+        ...entryEditForm,
+        lines: entryEditForm.lines.map((line) => ({
+          ...line,
+          amount: Number(line.amount),
+        })),
+        projectId: entryEditForm.projectId || undefined,
+      });
       toast.success("Journal entry updated");
       window.location.reload();
     } catch (error) {
@@ -321,15 +394,38 @@ function MigrationAccountingPage() {
       );
     }
   };
+  const entryDebitTotal = entryEditForm.lines.filter((line) => line.side === "debit").reduce((sum, line) => sum + Number(line.amount || 0), 0);
+  const entryCreditTotal = entryEditForm.lines.filter((line) => line.side === "credit").reduce((sum, line) => sum + Number(line.amount || 0), 0);
+  const updateEntryLine = (index: number, patch: Partial<{ accountId: string; side: "debit" | "credit"; amount: string; narration?: string }>) => setEntryEditForm((current) => ({ ...current, lines: current.lines.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line) }));
+  const addEntryLine = (side: "debit" | "credit") => setEntryEditForm((current) => ({ ...current, lines: [...current.lines, { accountId: "", side, amount: "", narration: "" }] }));
+  const removeEntryLine = (index: number) => setEntryEditForm((current) => ({ ...current, lines: current.lines.filter((_, lineIndex) => lineIndex !== index) }));
   const assignEntryProject = async (entry: any) => {
     if (!isOwner) return;
-    const currentProject = projects?.find((project) => project._id === entry.projectId);
-    const projectName = window.prompt("Project name (leave blank to unlink)", currentProject?.name ?? "");
+    const currentProject = projects?.find(
+      (project) => project._id === entry.projectId,
+    );
+    const projectName = window.prompt(
+      "Project name (leave blank to unlink)",
+      currentProject?.name ?? "",
+    );
     if (projectName === null) return;
-    const project = projects?.find((item) => item.name.trim().toLowerCase() === projectName.trim().toLowerCase());
-    if (projectName.trim() && !project) { toast.error("Project not found. Enter an exact project name."); return; }
-    try { await updateMigrationJournalEntry(entry._id, { projectId: project?._id }); toast.success("Project assignment updated"); window.location.reload(); }
-    catch (error) { toast.error(error instanceof Error ? error.message : "Could not assign project"); }
+    const project = projects?.find(
+      (item) =>
+        item.name.trim().toLowerCase() === projectName.trim().toLowerCase(),
+    );
+    if (projectName.trim() && !project) {
+      toast.error("Project not found. Enter an exact project name.");
+      return;
+    }
+    try {
+      await updateMigrationJournalEntry(entry._id, { projectId: project?._id });
+      toast.success("Project assignment updated");
+      window.location.reload();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Could not assign project",
+      );
+    }
   };
   const accountGroups = ["asset", "liability", "income", "expense", "equity"];
   return (
@@ -457,7 +553,7 @@ function MigrationAccountingPage() {
                   const rows = accounts.filter(
                     (account) =>
                       account.type === group &&
-                      (`${account.name} ${account.code}`)
+                      `${account.name} ${account.code}`
                         .toLowerCase()
                         .includes(accountSearch.toLowerCase().trim()),
                   );
@@ -562,18 +658,88 @@ function MigrationAccountingPage() {
       {(tab === "journal" || tab === "daybook") && (
         <Card>
           <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-3"><CardTitle>{tab === "journal" ? "Journal Entries" : "Day Book"}</CardTitle><span className="text-xs text-muted-foreground">{filteredEntries.length} entries</span></div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle>
+                {tab === "journal" ? "Journal Entries" : "Day Book"}
+              </CardTitle>
+              <span className="text-xs text-muted-foreground">
+                {filteredEntries.length} entries
+              </span>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-              <Input placeholder="Search narration / ref..." value={entrySearch} onChange={(event) => setEntrySearch(event.target.value)} />
-              <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={entryMonth} onChange={(event) => setEntryMonth(event.target.value)}><option value="all">All months</option>{Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={String(index + 1).padStart(2, "0")}>{new Date(2000, index).toLocaleString("en-IN", { month: "long" })}</option>)}</select>
-              <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={entryYear} onChange={(event) => setEntryYear(event.target.value)}><option value="all">All years</option>{entryYears.map((year) => <option key={year} value={year}>{year}</option>)}</select>
-              <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={entryLedger} onChange={(event) => setEntryLedger(event.target.value)}><option value="all">All ledgers</option>{ledgerOptions.map((account) => <option key={account._id} value={account._id}>{account.code} · {account.name}</option>)}</select>
-              <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={entryVoucherType} onChange={(event) => setEntryVoucherType(event.target.value)}><option value="all">All voucher types</option><option value="manual">Manual</option><option value="sales">Sales</option><option value="purchase">Purchase</option><option value="payment">Payment</option><option value="receipt">Receipt</option><option value="contra">Contra</option><option value="debit_note">Debit note</option><option value="credit_note">Credit note</option></select>
-              <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={entryStatus} onChange={(event) => setEntryStatus(event.target.value)}><option value="all">All statuses</option><option value="posted">Posted</option><option value="draft">Draft</option></select>
+              <Input
+                placeholder="Search narration / ref..."
+                value={entrySearch}
+                onChange={(event) => setEntrySearch(event.target.value)}
+              />
+              <select
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                value={entryMonth}
+                onChange={(event) => setEntryMonth(event.target.value)}
+              >
+                <option value="all">All months</option>
+                {Array.from({ length: 12 }, (_, index) => (
+                  <option
+                    key={index + 1}
+                    value={String(index + 1).padStart(2, "0")}
+                  >
+                    {new Date(2000, index).toLocaleString("en-IN", {
+                      month: "long",
+                    })}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                value={entryYear}
+                onChange={(event) => setEntryYear(event.target.value)}
+              >
+                <option value="all">All years</option>
+                {entryYears.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+              <SearchableSelect
+                value={entryLedger === "all" ? "" : entryLedger}
+                onValueChange={(value) => setEntryLedger(value || "all")}
+                options={ledgerSelectOptions}
+                placeholder="All ledgers"
+                searchPlaceholder="Search ledger"
+                allowClear
+                clearLabel="All ledgers"
+              />
+              <select
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                value={entryVoucherType}
+                onChange={(event) => setEntryVoucherType(event.target.value)}
+              >
+                <option value="all">All voucher types</option>
+                <option value="manual">Manual</option>
+                <option value="sales">Sales</option>
+                <option value="purchase">Purchase</option>
+                <option value="payment">Payment</option>
+                <option value="receipt">Receipt</option>
+                <option value="contra">Contra</option>
+                <option value="debit_note">Debit note</option>
+                <option value="credit_note">Credit note</option>
+              </select>
+              <select
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                value={entryStatus}
+                onChange={(event) => setEntryStatus(event.target.value)}
+              >
+                <option value="all">All statuses</option>
+                <option value="posted">Posted</option>
+                <option value="draft">Draft</option>
+              </select>
             </div>
-            {entries === undefined || journalLines === undefined || accounts === undefined ? (
+            {entries === undefined ||
+            journalLines === undefined ||
+            accounts === undefined ? (
               <Skeleton className="h-48 w-full" />
             ) : filteredEntries.length === 0 ? (
               <Empty>
@@ -590,49 +756,55 @@ function MigrationAccountingPage() {
             ) : (
               <div className="divide-y rounded-lg border">
                 {filteredEntries.map((entry) => (
-                    <div
-                      key={entry._id}
-                      className="flex items-center gap-3 px-3 py-2 text-sm"
-                    >
-                      <span className="w-24 text-xs text-muted-foreground">
-                        {entry.date}
-                      </span>
-                      <span className="w-28 font-mono text-xs">
-                        {entry.entryNumber || "—"}
-                      </span>
-                      <span className="flex-1 truncate">
-                        {entry.narration || "Journal entry"}
-                      </span>
-                      <span className="tabular-nums font-semibold">
-                        {formatCompactInr(
-                          Number(entry.totalAmount || entry.totalDebit || 0),
-                        )}
-                      </span>
-                      <Badge variant="secondary">
-                        {entry.status || "posted"}
-                      </Badge>
-                      {isOwner && (
-                        <>
-                          <Button size="sm" variant="ghost" onClick={() => void assignEntryProject(entry)}>Project</Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => void editEntry(entry)}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive"
-                            onClick={() => void removeEntry(entry)}
-                          >
-                            Delete
-                          </Button>
-                        </>
+                  <div
+                    key={entry._id}
+                    className="flex items-center gap-3 px-3 py-2 text-sm"
+                  >
+                    <span className="w-24 text-xs text-muted-foreground">
+                      {entry.date}
+                    </span>
+                    <span className="w-28 font-mono text-xs">
+                      {entry.entryNumber || "—"}
+                    </span>
+                    <span className="flex-1 truncate">
+                      {entry.narration || "Journal entry"}
+                    </span>
+                    <span className="tabular-nums font-semibold">
+                      {formatCompactInr(
+                        Number(entry.totalAmount || entry.totalDebit || 0),
                       )}
-                    </div>
-                  ))}
+                    </span>
+                    <Badge variant="secondary">
+                      {entry.status || "posted"}
+                    </Badge>
+                    {isOwner && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void assignEntryProject(entry)}
+                        >
+                          Project
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void editEntry(entry)}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive"
+                          onClick={() => void removeEntry(entry)}
+                        >
+                          Delete
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
@@ -648,6 +820,74 @@ function MigrationAccountingPage() {
         onOpenChange={setVoucherOpen}
         voucherType={voucherType}
       />
+      {editingEntry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-5xl space-y-3 rounded-lg bg-card p-6 lg:w-[65vw]">
+            <h2 className="text-lg font-semibold">Edit journal entry</h2>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Input
+                type="date"
+                value={entryEditForm.date}
+                onChange={(e) =>
+                  setEntryEditForm({ ...entryEditForm, date: e.target.value })
+                }
+              />
+              <Input
+                placeholder="Reference"
+                value={entryEditForm.reference}
+                onChange={(e) =>
+                  setEntryEditForm({
+                    ...entryEditForm,
+                    reference: e.target.value,
+                  })
+                }
+              />
+            </div>
+            <Input
+              placeholder="Narration"
+              value={entryEditForm.narration}
+              onChange={(e) =>
+                setEntryEditForm({
+                  ...entryEditForm,
+                  narration: e.target.value,
+                })
+              }
+            />
+            <div className="space-y-2 rounded-lg border p-3">
+              <div className="flex items-center justify-between"><p className="text-sm font-medium">Debit / Credit lines</p><div className="flex gap-2"><Button size="sm" variant="secondary" onClick={() => addEntryLine("debit")}>+ Debit</Button><Button size="sm" variant="secondary" onClick={() => addEntryLine("credit")}>+ Credit</Button></div></div>
+              <div className="space-y-2">{entryEditForm.lines.map((line, index) => <div key={index} className="grid gap-2 rounded-md border bg-muted/20 p-2 md:grid-cols-[100px_1fr_130px_48px]"><select className="h-9 rounded-md border border-input bg-background px-2 text-sm" value={line.side} onChange={(e) => updateEntryLine(index, { side: e.target.value as "debit" | "credit" })}><option value="debit">Debit</option><option value="credit">Credit</option></select><SearchableSelect value={line.accountId} onValueChange={(value) => updateEntryLine(index, { accountId: value })} options={ledgerSelectOptions} placeholder="Select ledger..." searchPlaceholder="Search ledger" /><Input type="number" placeholder="Amount" value={line.amount} onChange={(e) => updateEntryLine(index, { amount: e.target.value })} /><Button size="sm" variant="ghost" className="text-destructive" onClick={() => removeEntryLine(index)}>×</Button></div>)}</div>
+              <div className="flex justify-end gap-4 text-sm"><span>Debit: <strong>{formatCompactInr(entryDebitTotal)}</strong></span><span>Credit: <strong>{formatCompactInr(entryCreditTotal)}</strong></span><span className={cn(Math.abs(entryDebitTotal - entryCreditTotal) > 0.01 && "text-destructive")}>{Math.abs(entryDebitTotal - entryCreditTotal) <= 0.01 ? "Balanced" : `Diff ${formatCompactInr(Math.abs(entryDebitTotal - entryCreditTotal))}`}</span></div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-1">
+              <SearchableSelect
+                value={entryEditForm.projectId}
+                onValueChange={(value) =>
+                  setEntryEditForm({ ...entryEditForm, projectId: value })
+                }
+                options={(projects ?? []).map((project) => ({
+                  value: project._id,
+                  label: project.name,
+                }))}
+                placeholder="Project (optional)"
+                searchPlaceholder="Search project"
+                allowClear
+                clearLabel="No project"
+              />
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Ledger groups are edited from the ledger/account master. Use the
+              Edit button in Chart of Accounts or Trial Balance ledger rows to
+              change a ledger's group/opening balance.
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setEditingEntry(null)}>
+                Cancel
+              </Button>
+              <Button onClick={() => void saveEntryEdit()}>Save</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

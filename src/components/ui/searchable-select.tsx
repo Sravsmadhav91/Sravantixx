@@ -160,9 +160,9 @@ export function SearchableSelect({
                       value === opt.value ? "opacity-100" : "opacity-0",
                     )}
                   />
-                  <span className="flex-1 truncate">{opt.label}</span>
+                  <span className="min-w-0 flex-1 truncate">{opt.label}</span>
                   {opt.sub && (
-                    <span className="ml-2 text-xs text-muted-foreground shrink-0">
+                    <span className="ml-2 max-w-[45%] truncate text-xs text-muted-foreground shrink-0">
                       {opt.sub}
                     </span>
                   )}

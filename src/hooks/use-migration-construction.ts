@@ -4,11 +4,23 @@ import { getMigrationProject, migrationGet, type MigrationProject } from "@/lib/
 export type MigrationConstructionStage = {
   _id: string;
   name: string;
+  stageGroup?: string;
+  category?: string;
   order: number;
   percentComplete: number;
   startDate?: string;
   targetDate?: string;
   completedDate?: string;
+  plannedCost?: number;
+  actualCost?: number;
+  materialCost?: number;
+  labourCost?: number;
+  responsiblePerson?: string;
+  vendor?: string;
+  inspectionStatus?: string;
+  approvalStatus?: string;
+  documents?: string;
+  attachment?: { fileName: string; contentType: string; size: number; dataBase64: string };
   notes?: string;
 };
 
