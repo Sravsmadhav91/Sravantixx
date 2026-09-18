@@ -243,12 +243,36 @@ function MigrationAccountingPage() {
   const entries = useMigrationFinance<any[]>(
     "/api/tables/journalEntries/records",
   );
+  const journalLines = useMigrationFinance<any[]>(
+    "/api/tables/journalLines/records",
+  );
   const costCenters = useMigrationFinance<any[]>(
     "/api/tables/costCenters/records",
   );
   const balanceMap = new Map(
     (balances ?? []).map((balance) => [balance.accountId, balance.balance]),
   );
+  const [entrySearch, setEntrySearch] = useState("");
+  const [entryMonth, setEntryMonth] = useState("all");
+  const [entryYear, setEntryYear] = useState("all");
+  const [entryLedger, setEntryLedger] = useState("all");
+  const [entryVoucherType, setEntryVoucherType] = useState("all");
+  const [entryStatus, setEntryStatus] = useState("all");
+  const ledgerOptions = (accounts ?? []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const entryYears = [...new Set((entries ?? []).map((entry) => String(entry.date || "").slice(0, 4)).filter(Boolean))].sort().reverse();
+  const linesByEntry = new Map<string, any[]>();
+  for (const line of journalLines ?? []) linesByEntry.set(line.journalEntryId, [...(linesByEntry.get(line.journalEntryId) ?? []), line]);
+  const filteredEntries = (entries ?? []).filter((entry) => {
+    const date = String(entry.date || "");
+    const lines = linesByEntry.get(entry._id) ?? [];
+    const text = `${entry.entryNumber ?? ""} ${entry.narration ?? ""} ${entry.reference ?? ""}`.toLowerCase();
+    return (!entrySearch.trim() || text.includes(entrySearch.trim().toLowerCase())) &&
+      (entryMonth === "all" || date.slice(5, 7) === entryMonth) &&
+      (entryYear === "all" || date.slice(0, 4) === entryYear) &&
+      (entryLedger === "all" || lines.some((line) => line.accountId === entryLedger)) &&
+      (entryVoucherType === "all" || String(entry.voucherType || "manual") === entryVoucherType) &&
+      (entryStatus === "all" || entry.status === entryStatus);
+  }).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
   const { isOwner } = useRole();
   const removeAccount = async (account: any) => {
     if (!isOwner || !window.confirm(`Delete account ${account.name}?`)) return;
@@ -527,14 +551,20 @@ function MigrationAccountingPage() {
       {(tab === "journal" || tab === "daybook") && (
         <Card>
           <CardHeader>
-            <CardTitle>
-              {tab === "journal" ? "Journal Entries" : "Day Book"}
-            </CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-3"><CardTitle>{tab === "journal" ? "Journal Entries" : "Day Book"}</CardTitle><span className="text-xs text-muted-foreground">{filteredEntries.length} entries</span></div>
           </CardHeader>
           <CardContent>
-            {entries === undefined ? (
+            <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+              <Input placeholder="Search narration / ref..." value={entrySearch} onChange={(event) => setEntrySearch(event.target.value)} />
+              <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={entryMonth} onChange={(event) => setEntryMonth(event.target.value)}><option value="all">All months</option>{Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={String(index + 1).padStart(2, "0")}>{new Date(2000, index).toLocaleString("en-IN", { month: "long" })}</option>)}</select>
+              <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={entryYear} onChange={(event) => setEntryYear(event.target.value)}><option value="all">All years</option>{entryYears.map((year) => <option key={year} value={year}>{year}</option>)}</select>
+              <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={entryLedger} onChange={(event) => setEntryLedger(event.target.value)}><option value="all">All ledgers</option>{ledgerOptions.map((account) => <option key={account._id} value={account._id}>{account.code} · {account.name}</option>)}</select>
+              <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={entryVoucherType} onChange={(event) => setEntryVoucherType(event.target.value)}><option value="all">All voucher types</option><option value="manual">Manual</option><option value="sales">Sales</option><option value="purchase">Purchase</option><option value="payment">Payment</option><option value="receipt">Receipt</option><option value="contra">Contra</option><option value="debit_note">Debit note</option><option value="credit_note">Credit note</option></select>
+              <select className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={entryStatus} onChange={(event) => setEntryStatus(event.target.value)}><option value="all">All statuses</option><option value="posted">Posted</option><option value="draft">Draft</option></select>
+            </div>
+            {entries === undefined || journalLines === undefined || accounts === undefined ? (
               <Skeleton className="h-48 w-full" />
-            ) : entries.length === 0 ? (
+            ) : filteredEntries.length === 0 ? (
               <Empty>
                 <EmptyHeader>
                   <EmptyMedia variant="icon">
@@ -548,12 +578,7 @@ function MigrationAccountingPage() {
               </Empty>
             ) : (
               <div className="divide-y rounded-lg border">
-                {entries
-                  .slice()
-                  .sort((a, b) =>
-                    String(b.date || "").localeCompare(String(a.date || "")),
-                  )
-                  .map((entry) => (
+                {filteredEntries.map((entry) => (
                     <div
                       key={entry._id}
                       className="flex items-center gap-3 px-3 py-2 text-sm"

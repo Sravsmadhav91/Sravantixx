@@ -592,6 +592,24 @@ export async function postMigrationDraftPurchaseInvoices() {
   return response.json() as Promise<{ posted: number; failed: number; failures: Array<{ reference?: string; error: string }> }>;
 }
 
+export async function updateMigrationPurchaseInvoice(invoiceId: string, input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/payables/invoices/${encodeURIComponent(invoiceId)}`, { method: "PATCH", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function deleteMigrationPurchaseInvoice(invoiceId: string) {
+  const response = await fetch(`${apiUrl}/api/payables/invoices/${encodeURIComponent(invoiceId)}`, { method: "DELETE", headers: await migrationHeaders() });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.status === 204 ? null : response.json();
+}
+
+export async function postMigrationPurchaseInvoice(invoiceId: string) {
+  const response = await fetch(`${apiUrl}/api/payables/invoices/${encodeURIComponent(invoiceId)}/post`, { method: "POST", headers: await migrationHeaders() });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
 export async function importMigrationImsInvoices(rows: Record<string, unknown>[]) {
   const response = await fetch(`${apiUrl}/api/payables/import-ims`, {
     method: "POST",

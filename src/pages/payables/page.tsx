@@ -43,6 +43,7 @@ import {
   migrationApiEnabled, createMigrationVendor,
   approveMigrationPurchaseOrder,
   postMigrationDraftPurchaseInvoices,
+  updateMigrationPurchaseInvoice, deleteMigrationPurchaseInvoice, postMigrationPurchaseInvoice,
   type MigrationPurchaseOrder, type MigrationPurchaseInvoice, type MigrationApAgingRow,
 } from "@/lib/migration-api.ts";
 import { useMigrationFinance } from "@/hooks/use-migration-finance.ts";
@@ -90,6 +91,7 @@ function MigrationPayablesPage() {
   const vendors = useMigrationFinance<Doc<"vendors">[]>("/api/payables/vendors");
   const purchaseOrders = useMigrationFinance<MigrationPurchaseOrder[]>("/api/purchase-orders");
   const invoices = useMigrationFinance<MigrationPurchaseInvoice[]>("/api/payables/invoices");
+  const projects = useMigrationFinance<Array<{ _id: string; name: string }>>("/api/projects");
   const aging = useMigrationFinance<MigrationApAgingRow[]>("/api/payables/aging");
 
   const filteredOrders = purchaseOrders?.filter((po) => {
@@ -133,6 +135,29 @@ function MigrationPayablesPage() {
       window.location.reload();
     } catch (error) { toast.error(error instanceof Error ? error.message : "Could not post draft invoices"); }
     finally { setPostingDrafts(false); }
+  };
+  const editDraft = async (invoice: MigrationPurchaseInvoice) => {
+    const invoiceNumber = window.prompt("Invoice number", invoice.invoiceNumber);
+    if (invoiceNumber === null) return;
+    const date = window.prompt("Invoice date (YYYY-MM-DD)", invoice.date.slice(0, 10));
+    if (date === null) return;
+    const currentProject = projects?.find((project) => project._id === invoice.projectId);
+    const projectName = window.prompt("Project name (leave blank to unlink)", currentProject?.name ?? "");
+    if (projectName === null) return;
+    const project = projects?.find((item) => item.name.trim().toLowerCase() === projectName.trim().toLowerCase());
+    if (projectName.trim() && !project) { toast.error("Project not found. Enter an exact project name."); return; }
+    try { await updateMigrationPurchaseInvoice(invoice._id, { invoiceNumber, date, projectId: project?._id }); toast.success("Draft invoice updated"); window.location.reload(); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Could not update draft invoice"); }
+  };
+  const approveDraft = async (invoice: MigrationPurchaseInvoice) => {
+    if (!window.confirm(`Approve ${invoice.internalRef}? This will create its journal entry.`)) return;
+    try { await postMigrationPurchaseInvoice(invoice._id); toast.success("Invoice approved and posted"); window.location.reload(); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Could not approve invoice"); }
+  };
+  const deleteDraft = async (invoice: MigrationPurchaseInvoice) => {
+    if (!window.confirm(`Delete draft ${invoice.internalRef}?`)) return;
+    try { await deleteMigrationPurchaseInvoice(invoice._id); toast.success("Draft invoice deleted"); window.location.reload(); }
+    catch (error) { toast.error(error instanceof Error ? error.message : "Could not delete invoice"); }
   };
 
   return (
@@ -264,6 +289,7 @@ function MigrationPayablesPage() {
                     <th className="px-3 py-2">Delivery</th>
                     <th className="px-3 py-2 text-right">Total</th>
                     <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Actions</th>
                     <th className="px-3 py-2">Invoice</th>
                     <th className="px-3 py-2">Action</th>
                   </tr>
@@ -347,6 +373,9 @@ function MigrationPayablesPage() {
                         <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", INVOICE_STATUS_COLORS[inv.status])}>
                           {INVOICE_STATUS_LABELS[inv.status]}
                         </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        {inv.status === "draft" && <div className="flex gap-1"><Button size="sm" variant="ghost" onClick={() => void editDraft(inv)} aria-label="Edit draft invoice"><Pencil className="size-3.5" /></Button><Button size="sm" variant="ghost" onClick={() => void approveDraft(inv)} aria-label="Approve draft invoice"><CheckCircle className="size-3.5 text-primary" /></Button><Button size="sm" variant="ghost" className="text-destructive" onClick={() => void deleteDraft(inv)} aria-label="Delete draft invoice"><XCircle className="size-3.5" /></Button></div>}
                       </td>
                     </tr>
                   ))}
