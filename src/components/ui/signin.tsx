@@ -159,9 +159,10 @@ export const SignInButton = forwardRef<HTMLButtonElement, SignInButtonProps>(
             </DialogHeader>
           </div>
           <div className="space-y-5 px-6 py-6">
-            <Button variant="outline" className="h-11 w-full justify-between border-slate-300 bg-white px-4 text-slate-800 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900" onClick={() => { void activeAuth.signinWithGoogle().catch((error) => toast.error(error instanceof Error ? error.message : "Google sign-in failed")); }}>
-              <span className="flex items-center gap-3"><span className="flex size-6 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-bold text-[#4285f4] shadow-sm">G</span>Continue with Google</span>
-              <ArrowRight className="size-4" />
+            <Button variant="outline" className="group relative h-12 w-full justify-between overflow-hidden border-slate-300 bg-white px-4 text-slate-800 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900" onClick={() => { void activeAuth.signinWithGoogle().catch((error) => toast.error(error instanceof Error ? error.message : "Google sign-in failed")); }}>
+              <span className="absolute inset-x-0 top-0 flex h-1"><span className="flex-1 bg-[#4285f4]" /><span className="flex-1 bg-[#34a853]" /><span className="flex-1 bg-[#fbbc05]" /><span className="flex-1 bg-[#ea4335]" /></span>
+              <span className="flex items-center gap-3"><span className="relative flex size-7 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-sm font-bold shadow-sm"><span className="absolute inset-0 bg-[conic-gradient(from_210deg,#4285f4_0deg_105deg,#34a853_105deg_180deg,#fbbc05_180deg_250deg,#ea4335_250deg_360deg)] opacity-25" /><span className="relative text-[#4285f4]">G</span></span>Continue with Google</span>
+              <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
             </Button>
             <div className="flex items-center gap-3 text-xs text-muted-foreground"><div className="h-px flex-1 bg-border" /><span>or continue with email</span><div className="h-px flex-1 bg-border" /></div>
             <div className="space-y-2">
