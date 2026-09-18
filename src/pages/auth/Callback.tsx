@@ -17,11 +17,31 @@ function SupabaseCallback() {
         return;
       }
       const code = new URL(window.location.href).searchParams.get("code");
-      if (code) await supabase.auth.exchangeCodeForSession(code);
-      else await supabase.auth.getSession();
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (error) throw error;
+      } else {
+        const hash = new URLSearchParams(window.location.hash.slice(1));
+        const accessToken = hash.get("access_token");
+        const refreshToken = hash.get("refresh_token");
+        if (accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.auth.getSession();
+          if (error) throw error;
+        }
+      }
+      window.history.replaceState({}, document.title, `${window.location.origin}/`);
       navigate("/", { replace: true });
     };
-    void finishSignIn().catch(() => navigate("/", { replace: true }));
+    void finishSignIn().catch(() => {
+      window.history.replaceState({}, document.title, `${window.location.origin}/`);
+      navigate("/", { replace: true });
+    });
   }, [navigate]);
   return (
     <div className="flex flex-col items-center justify-center h-svh gap-4">

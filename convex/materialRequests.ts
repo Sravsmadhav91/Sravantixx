@@ -23,6 +23,9 @@ const lineValidator = v.object({
   description: v.string(),
   unit: v.string(),
   quantity: v.number(),
+  rate: v.optional(v.number()),
+  gstRate: v.optional(v.number()),
+  amount: v.optional(v.number()),
   notes: v.optional(v.string()),
 });
 

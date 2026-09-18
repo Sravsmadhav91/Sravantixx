@@ -30,26 +30,12 @@ function formatDate(iso: string): string {
 function addLetterhead(doc: jsPDF, title: string) {
   const W = doc.internal.pageSize.getWidth();
 
-  // Header bar
-  doc.setFillColor(...DARK);
-  doc.rect(0, 0, W, 24, "F");
-
-  // Company name
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
-  doc.setTextColor(255, 255, 255);
-  doc.text("MIGHTY HOMES", 14, 12);
-
-  // Gold underline accent
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, W, 30, "F");
+  doc.addImage("/mighty-homes-logo.png", "PNG", 14, 3, 68, 18);
   doc.setDrawColor(...GOLD);
-  doc.setLineWidth(0.8);
-  doc.line(14, 14.5, 68, 14.5);
-
-  // Tagline
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
-  doc.setTextColor(180, 200, 195);
-  doc.text("Real Estate Developer  ·  Mighty Yuva, Kannamangala, Bangalore", 14, 20);
+  doc.setLineWidth(0.6);
+  doc.line(14, 24, W - 14, 24);
 
   // Document title
   doc.setFont("helvetica", "bold");
@@ -73,6 +59,35 @@ function addFooter(doc: jsPDF) {
   // Stacked on separate lines so the address and print timestamp never collide on narrow pages.
   doc.text("Mighty Homes  ·  Flat No.414, 4th Floor, Mighty Marwel, Kannamangala, Bangalore – 560067", 14, H - 11);
   doc.text(`Printed on ${new Date().toLocaleString("en-IN")}`, 14, H - 6.5);
+}
+
+export function downloadPurchaseOrder(data: { poNumber: string; date: string; vendorName: string; expectedDeliveryDate?: string; narration?: string; shippingAddress?: string; signatoryName?: string; signatoryTitle?: string; lines: Array<{ description: string; quantity: number; unit?: string; rate: number; gstRate?: number }>; subtotal: number; cgst: number; sgst: number; total: number }) {
+  const doc = new jsPDF();
+  let y = addLetterhead(doc, "Purchase Order");
+  const W = doc.internal.pageSize.getWidth();
+  doc.setFontSize(9); doc.setTextColor(...MUTED);
+  doc.text(`PO No: ${data.poNumber}`, 14, y);
+  doc.text(`Date: ${formatDate(data.date)}`, W - 14, y, { align: "right" });
+  y += 9;
+  doc.setFont("helvetica", "bold"); doc.setTextColor(...DARK); doc.setFontSize(11); doc.text(data.vendorName, 14, y);
+  if (data.expectedDeliveryDate) { doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...MUTED); doc.text(`Expected delivery: ${formatDate(data.expectedDeliveryDate)}`, W - 14, y, { align: "right" }); }
+  y += 7;
+  autoTable(doc, { startY: y, margin: { left: 14, right: 14 }, head: [["Item", "Qty", "Unit", "Rate", "GST", "Amount"]], body: data.lines.map((line) => [line.description, String(line.quantity), line.unit || "-", formatInr(line.rate), `${line.gstRate || 0}%`, formatInr(line.quantity * line.rate)]), styles: { fontSize: 8 }, headStyles: { fillColor: GREEN }, columnStyles: { 1: { halign: "right" }, 3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" } } });
+  y = (doc as any).lastAutoTable.finalY + 10;
+  doc.setFontSize(9); doc.setTextColor(...DARK); doc.text(`Taxable value: ${formatInr(data.subtotal)}`, W - 14, y, { align: "right" });
+  doc.text(`CGST: ${formatInr(data.cgst)}   SGST: ${formatInr(data.sgst)}`, W - 14, y + 6, { align: "right" });
+  doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.text(`Grand total: ${formatInr(data.total)}`, W - 14, y + 14, { align: "right" });
+  const H = doc.internal.pageSize.getHeight();
+  if (y > H - 76) { doc.addPage(); y = 20; }
+  doc.setDrawColor(...GREEN); doc.setLineWidth(0.3); doc.line(14, y + 21, W - 14, y + 21);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...MUTED); doc.text("SHIPPING ADDRESS", 14, y + 28);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...DARK); const shippingLines = doc.splitTextToSize(data.shippingAddress || "Project address not provided", 110); doc.text(shippingLines, 14, y + 34);
+  const detailsY = y + 34 + shippingLines.length * 5 + 5;
+  if (data.narration) { doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...MUTED); doc.text("ADDITIONAL DETAILS", 14, detailsY); doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...DARK); doc.text(doc.splitTextToSize(data.narration, 110), 14, detailsY + 6); }
+  doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...MUTED); doc.text("FOR M/S. MIGHTY HOMES", W - 14, y + 28, { align: "right" });
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(...DARK); doc.text("Authorized Signatory", W - 14, y + 50, { align: "right" });
+  addFooter(doc);
+  doc.save(`${data.poNumber}.pdf`);
 }
 
 // Returns the number of lines the value wrapped to, so callers can adjust the next row's y-position.

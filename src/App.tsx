@@ -17,6 +17,7 @@ import CollectionDetailPage from "./pages/collections/detail-page.tsx";
 import ConstructionPage from "./pages/construction/page.tsx";
 import ConstructionDetailPage from "./pages/construction/detail-page.tsx";
 import MaterialRequestsPage from "./pages/material-requests/page.tsx";
+import QuotationAnalysisPage from "./pages/quotation-analysis/page.tsx";
 import SubcontractsPage from "./pages/subcontracts/page.tsx";
 import LabourPage from "./pages/labour/page.tsx";
 import LoansPage from "./pages/loans/page.tsx";
@@ -63,6 +64,7 @@ export default function App() {
               <Route path="/construction" element={<ConstructionPage />} />
               <Route path="/construction/:projectId" element={<ConstructionDetailPage />} />
               <Route path="/material-requests" element={<MaterialRequestsPage />} />
+              <Route path="/quotation-analysis" element={<QuotationAnalysisPage />} />
               <Route path="/subcontracts" element={<SubcontractsPage />} />
               <Route path="/labour" element={<LabourPage />} />
               <Route path="/loans" element={<LoansPage />} />

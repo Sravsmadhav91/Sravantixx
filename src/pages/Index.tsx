@@ -70,7 +70,7 @@ export default function Index() {
   const year = new Date().getFullYear();
   const independentMode = supabaseAuthEnabled || migrationApiEnabled;
   const { isAuthenticated } = useAuth();
-  const showDashboard = isAuthenticated;
+  const showDashboard = isAuthenticated || (import.meta.env.DEV && migrationApiEnabled && import.meta.env.VITE_MIGRATION_ALLOW_OWNER_FALLBACK === "true");
 
   return (
     <div className="min-h-screen bg-background">

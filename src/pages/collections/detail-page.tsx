@@ -585,33 +585,6 @@ function CollectionDetailPageBody({
             );
           })()}
 
-          {/* Additional charges breakdown */}
-          {(stmt.booking.gstAmount || stmt.booking.carParkingCharges || stmt.booking.maintenanceFund || stmt.booking.corpusFund) && (() => {
-            const charges = [
-              stmt.booking.gstAmount ? { label: `GST @ ${stmt.booking.gstPercent ?? ""}%`, amount: stmt.booking.gstAmount } : null,
-              stmt.booking.carParkingCharges ? { label: "Car parking", amount: stmt.booking.carParkingCharges } : null,
-              stmt.booking.maintenanceFund ? { label: "Maintenance fund (1 yr)", amount: stmt.booking.maintenanceFund } : null,
-              stmt.booking.corpusFund ? { label: `Corpus fund (₹${stmt.booking.corpusFundRatePerSqft ?? ""}/sq ft)`, amount: stmt.booking.corpusFund } : null,
-            ].filter(Boolean) as { label: string; amount: number }[];
-            const totalExtra = charges.reduce((s, c) => s + c.amount, 0);
-            const grandTotal = stmt.booking.agreementValue + totalExtra;
-            return (
-              <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm space-y-1.5">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Additional charges</p>
-                {charges.map((c) => (
-                  <div key={c.label} className="flex justify-between text-muted-foreground">
-                    <span>{c.label}</span>
-                    <span className="tabular-nums">{formatCompactInr(c.amount)}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between font-semibold border-t border-border pt-1.5">
-                  <span>Total receivable</span>
-                  <span className="tabular-nums text-primary">{formatCompactInr(grandTotal)}</span>
-                </div>
-              </div>
-            );
-          })()}
-
           {/* Tabs */}
           <div className="flex gap-1 border-b border-border">
             {([

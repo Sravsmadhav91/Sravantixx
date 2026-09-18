@@ -38,6 +38,7 @@ import RecordPaymentDialog from "./_components/record-payment-dialog.tsx";
 import PurchaseOrderDialog from "./_components/purchase-order-dialog.tsx";
 import ConvertToInvoiceDialog from "./_components/convert-to-invoice-dialog.tsx";
 import ScanInvoiceDialog from "./_components/scan-invoice-dialog.tsx";
+import MigrationPoReviewDialog from "./_components/migration-po-review-dialog.tsx";
 import {
   migrationApiEnabled, createMigrationVendor,
   approveMigrationPurchaseOrder,
@@ -80,6 +81,7 @@ function MigrationPayablesPage() {
   const [sortBy, setSortBy] = useState<PayablesSort>("date");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [postingDrafts, setPostingDrafts] = useState(false);
+  const [reviewOrderId, setReviewOrderId] = useState<string | null>(null);
   const [name, setName] = useState(""); const [category, setCategory] = useState("contractor"); const [phone, setPhone] = useState(""); const [email, setEmail] = useState(""); const [gstin, setGstin] = useState(""); const [pan, setPan] = useState(""); const [address, setAddress] = useState(""); const [bankName, setBankName] = useState(""); const [bankAccount, setBankAccount] = useState(""); const [ifsc, setIfsc] = useState(""); const [notes, setNotes] = useState("");
   const submit = async () => { if (!name.trim()) { toast.error("Vendor name is required"); return; } try { await createMigrationVendor({ name, category, phone, email, gstin, pan, address, bankName, bankAccount, ifsc, notes }); toast.success("Vendor added"); setDialogOpen(false); window.location.reload(); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not add vendor"); } };
   const approveOrder = async (orderId: string) => { if (!window.confirm("Approve and send this purchase order?")) return; try { await approveMigrationPurchaseOrder(orderId); toast.success("Purchase order approved"); window.location.reload(); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not approve purchase order"); } };
@@ -291,6 +293,7 @@ function MigrationPayablesPage() {
                         )}
                       </td>
                       <td className="px-3 py-2">{po.status === "draft" && canApproveOrders ? <Button size="sm" variant="secondary" onClick={() => void approveOrder(po._id)}><CheckCircle className="size-3.5" />Approve PO</Button> : "—"}</td>
+                      <td className="px-3 py-2"><Button size="sm" variant="ghost" onClick={() => setReviewOrderId(po._id)}>Review</Button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -455,6 +458,7 @@ function MigrationPayablesPage() {
           )}
         </TabsContent>
       </Tabs>
+      <MigrationPoReviewDialog orderId={reviewOrderId} open={!!reviewOrderId} onOpenChange={(open) => { if (!open) setReviewOrderId(null); }} />
 
       {dialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

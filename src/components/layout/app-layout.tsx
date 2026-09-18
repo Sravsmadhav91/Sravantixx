@@ -1,8 +1,8 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Authenticated, AuthLoading, Unauthenticated, useQuery } from "convex/react";
 import { toast } from "sonner";
-import { Download, LogOut, Search, Share, ShieldAlert, X } from "lucide-react";
+import { ChevronDown, Download, LogOut, Search, Share, ShieldAlert, X } from "lucide-react";
 import { api } from "@/convex/_generated/api.js";
 import { useAuth } from "@/hooks/use-auth.ts";
 import { useRole } from "@/hooks/use-role.ts";
@@ -113,26 +113,29 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const { isOwner, canAccess } = useRole();
   const pendingCount = useQuery(api.bookings.getPendingApprovalsCount, isOwner ? {} : "skip");
   const visibleItems = NAV_ITEMS.filter((item) => canAccess(item.module));
-  return (
-    <nav className="flex flex-col gap-1 px-3">
-      {visibleItems.map((item) => (
-        <NavItemLink
-          key={item.to}
-          item={item}
-          onNavigate={onNavigate}
-          badgeCount={item.to === "/bookings" ? pendingCount : undefined}
-        />
-      ))}
-    </nav>
-  );
+  return <GroupedNavLinks items={visibleItems} onNavigate={onNavigate} badgeCount={pendingCount} />;
 }
 
 function MigrationNavLinks({ onNavigate }: { onNavigate?: () => void }) {
+  return <GroupedNavLinks items={NAV_ITEMS.filter((item) => item.available)} onNavigate={onNavigate} />;
+}
+
+function GroupedNavLinks({ items, onNavigate, badgeCount }: { items: NavItem[]; onNavigate?: () => void; badgeCount?: number }) {
+  const location = useLocation();
+  const siteItems = items.filter((item) => item.group === "site");
+  const otherItems = items.filter((item) => item.group !== "site");
+  const siteActive = siteItems.some((item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`));
+  const [siteOpen, setSiteOpen] = useState(siteActive);
+  useEffect(() => { if (siteActive) setSiteOpen(true); }, [siteActive]);
   return (
     <nav className="flex flex-col gap-1 px-3">
-      {NAV_ITEMS.filter((item) => item.available).map((item) => (
-        <NavItemLink key={item.to} item={item} onNavigate={onNavigate} />
-      ))}
+      {otherItems.map((item) => <NavItemLink key={item.to} item={item} onNavigate={onNavigate} badgeCount={item.to === "/bookings" ? badgeCount : undefined} />)}
+      {siteItems.length > 0 && <>
+        <button type="button" onClick={() => setSiteOpen((open) => !open)} className="mt-3 flex items-center justify-between rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground">
+          <span>Site</span><ChevronDown className={cn("size-4 transition-transform", siteOpen && "rotate-180")} />
+        </button>
+        {siteOpen && <div className="flex flex-col gap-1 border-l border-sidebar-border pl-2">{siteItems.map((item) => <NavItemLink key={item.to} item={item} onNavigate={onNavigate} />)}</div>}
+      </>}
     </nav>
   );
 }
@@ -383,12 +386,13 @@ function SignInPrompt() {
 
 export default function AppLayout() {
   const { isAuthenticated, isLoading } = useAuth();
+  const allowLocalMigrationFallback = import.meta.env.DEV && import.meta.env.VITE_MIGRATION_ALLOW_OWNER_FALLBACK === "true";
 
   if (migrationApiEnabled) {
     if (isLoading) {
       return <div className="flex min-h-screen"><Skeleton className="hidden h-screen w-64 md:block" /><div className="flex-1 space-y-4 p-6"><Skeleton className="h-10 w-64" /><Skeleton className="h-40 w-full" /></div></div>;
     }
-    if (!isAuthenticated) return <SignInPrompt />;
+    if (!isAuthenticated && !allowLocalMigrationFallback) return <SignInPrompt />;
     return <SignedInShell />;
   }
 

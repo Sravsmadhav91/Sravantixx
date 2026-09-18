@@ -37,6 +37,12 @@ export const materialRequestLines = defineTable({
   description: v.string(),
   unit: v.string(),
   quantity: v.number(),
+  /** Optional estimated unit rate, carried into a purchase order conversion. */
+  rate: v.optional(v.number()),
+  /** GST percentage quoted for this material line. */
+  gstRate: v.optional(v.number()),
+  /** Derived quantity multiplied by rate, stored for quotation traceability. */
+  amount: v.optional(v.number()),
   notes: v.optional(v.string()),
 })
   .index("by_request", ["materialRequestId"])

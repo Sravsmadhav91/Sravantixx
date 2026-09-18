@@ -26,19 +26,24 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog.tsx";
 import BuyerFormDialog from "./buyer-form-dialog.tsx";
+import MigrationBuyerFormDialog from "./migration-buyer-form-dialog.tsx";
+import { deleteMigrationBuyer } from "@/lib/migration-api.ts";
 
-type BuyerCardProps = { buyer: Doc<"buyers">; readOnly?: boolean };
+type BuyerCardProps = { buyer: Doc<"buyers">; readOnly?: boolean; migrationMode?: boolean };
 
-export default function BuyerCard({ buyer, readOnly = false }: BuyerCardProps) {
+export default function BuyerCard({ buyer, readOnly = false, migrationMode = false }: BuyerCardProps) {
   if (readOnly) {
-    return <ReadOnlyBuyerCard buyer={buyer} />;
+    return <ReadOnlyBuyerCard buyer={buyer} migrationMode={migrationMode} />;
   }
   return <EditableBuyerCard buyer={buyer} />;
 }
 
-function ReadOnlyBuyerCard({ buyer }: { buyer: Doc<"buyers"> }) {
+function ReadOnlyBuyerCard({ buyer, migrationMode }: { buyer: Doc<"buyers">; migrationMode: boolean }) {
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const initials = buyer.name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase();
-  return <Card><CardContent className="space-y-3"><div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{initials}</span><Link to={`/buyers/${buyer._id}`} className="truncate font-medium hover:text-primary">{buyer.name}</Link></div><div className="space-y-1 text-sm text-muted-foreground"><p className="flex items-center gap-1.5"><Phone className="size-3.5" />{buyer.phone}</p>{buyer.email && <p className="flex items-center gap-1.5"><Mail className="size-3.5" />{buyer.email}</p>}</div><Button asChild variant="secondary" size="sm" className="w-full"><Link to={`/buyers/${buyer._id}`}>View bookings</Link></Button></CardContent></Card>;
+  const remove = async () => { if (!window.confirm(`Delete ${buyer.name}? This cannot be undone.`)) return; setDeleting(true); try { await deleteMigrationBuyer(buyer._id); toast.success("Buyer deleted"); window.location.reload(); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not delete buyer"); } finally { setDeleting(false); } };
+  return <><Card><CardContent className="space-y-3"><div className="flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">{initials}</span><Link to={`/buyers/${buyer._id}`} className="truncate font-medium hover:text-primary">{buyer.name}</Link></div><div className="space-y-1 text-sm text-muted-foreground"><p className="flex items-center gap-1.5"><Phone className="size-3.5" />{buyer.phone}</p>{buyer.email && <p className="flex items-center gap-1.5"><Mail className="size-3.5" />{buyer.email}</p>}</div><div className="grid grid-cols-3 gap-2"><Button asChild variant="secondary" size="sm"><Link to={`/buyers/${buyer._id}`}>View bookings</Link></Button>{migrationMode && <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil className="size-4" />Edit</Button>}{migrationMode && <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={deleting} onClick={() => void remove()}><Trash2 className="size-4" />Delete</Button>}</div></CardContent></Card>{migrationMode && <MigrationBuyerFormDialog open={editOpen} onOpenChange={setEditOpen} buyer={buyer} />}</>;
 }
 
 function EditableBuyerCard({ buyer }: { buyer: Doc<"buyers"> }) {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
 import { toast } from "sonner";
@@ -9,6 +9,8 @@ import {
   CheckCircle,
   XCircle,
   ArrowRight,
+  Camera,
+  FileUp,
   Paperclip,
   Trash2,
   X,
@@ -58,12 +60,15 @@ import ConvertToPoDialog from "./_components/convert-to-po-dialog.tsx";
 import { migrationApiEnabled } from "@/lib/migration-api.ts";
 import { useMigrationMaterialRequests } from "@/hooks/use-migration-material-requests.ts";
 import { useMigrationProjects } from "@/hooks/use-migration-projects.ts";
+import { useMigrationInventory } from "@/hooks/use-migration-inventory.ts";
 import {
   createMigrationMaterialRequest,
   reviewMigrationMaterialRequest,
 } from "@/lib/migration-api.ts";
 import MigrationConvertToPoDialog from "./_components/migration-convert-to-po-dialog.tsx";
 import MigrationQuotationDialog from "./_components/migration-quotation-dialog.tsx";
+import { parseSpreadsheetFile } from "@/lib/file-parser.ts";
+import { uploadMigrationDocument } from "@/lib/migration-api.ts";
 
 function MigrationMaterialRequestsPage() {
   const { role } = useRole();
@@ -73,13 +78,34 @@ function MigrationMaterialRequestsPage() {
   const [neededByDate, setNeededByDate] = useState("");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState([
-    { description: "", quantity: "", unit: "" },
+    { description: "", quantity: "", unit: "", rate: "", gstRate: "" },
   ]);
+  const [quotationFile, setQuotationFile] = useState<File | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
   const [convertRequest, setConvertRequest] = useState<any | null>(null);
   const [quotationRequest, setQuotationRequest] = useState<any | null>(null);
   const projects = useMigrationProjects().projects;
+  const { items: savedMaterials } = useMigrationInventory();
   const requests = useMigrationMaterialRequests(status);
   const canReview = role === "owner" || role === "project_manager";
+  const subtotal = lines.reduce((sum, line) => sum + (Number(line.quantity) || 0) * (Number(line.rate) || 0), 0);
+  const gstAmount = lines.reduce((sum, line) => sum + (Number(line.quantity) || 0) * (Number(line.rate) || 0) * (Number(line.gstRate) || 0) / 100, 0);
+  const valueFor = (row: Record<string, unknown>, names: string[]) => String(names.map((name) => row[name]).find((value) => value !== undefined && String(value).trim() !== "") ?? "").trim();
+  const loadQuotation = async (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { toast.error("Quotation file must be 20 MB or smaller"); return; }
+    setQuotationFile(file);
+    if (!/\.(xlsx|xls|csv)$/i.test(file.name)) { toast.info("Quotation attached. Add or review item values manually; image/PDF extraction requires OCR."); return; }
+    try {
+      const result = await parseSpreadsheetFile(file);
+      if (result.parseErrors.length) throw new Error(result.parseErrors[0]);
+      const imported = result.rows.map((row) => ({ description: valueFor(row, ["item", "description", "material", "item_description", "particulars"]), quantity: valueFor(row, ["qty", "quantity"]), unit: valueFor(row, ["unit", "uom"]), rate: valueFor(row, ["rate", "rate_per_item", "unit_rate", "price"]), gstRate: valueFor(row, ["gst", "gst_rate", "gst_percent", "tax_rate"]).replace("%", "") })).filter((line) => line.description && line.quantity);
+      if (!imported.length) { toast.info("Quotation attached. No item rows were recognized, so review the fields manually."); return; }
+      setLines(imported);
+      toast.success(`${imported.length} item${imported.length === 1 ? "" : "s"} loaded from quotation`);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not read quotation spreadsheet"); }
+  };
   const submit = async () => {
     if (
       !projectId ||
@@ -92,15 +118,18 @@ function MigrationMaterialRequestsPage() {
       return;
     }
     try {
-      await createMigrationMaterialRequest({
+      const request = await createMigrationMaterialRequest({
         projectId,
         neededByDate: neededByDate || undefined,
         notes: notes || undefined,
         lines: lines.map((line) => ({
           ...line,
           quantity: Number(line.quantity),
+          rate: line.rate ? Number(line.rate) : undefined,
+          gstRate: line.gstRate ? Number(line.gstRate) : undefined,
         })),
       });
+      if (quotationFile) await uploadMigrationDocument({ linkedType: "materialRequest", linkedId: request._id, linkedName: `Material Request - ${request.requestNumber ?? ""}`, file: quotationFile, docType: "other", label: `Quotation - ${quotationFile.name}` });
       toast.success("Request submitted");
       setCreateOpen(false);
       window.location.reload();
@@ -212,7 +241,7 @@ function MigrationMaterialRequestsPage() {
       <MigrationQuotationDialog request={quotationRequest} open={!!quotationRequest} onOpenChange={(open) => { if (!open) setQuotationRequest(null); }} />
       {createOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-lg space-y-4 rounded-lg bg-card p-6">
+          <div className="w-full max-w-5xl space-y-4 rounded-lg bg-card p-6">
             <h2 className="text-xl font-semibold">New material request</h2>
             <select
               className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -234,9 +263,11 @@ function MigrationMaterialRequestsPage() {
             <p className="text-xs font-semibold uppercase text-muted-foreground">
               Materials needed
             </p>
+            <div className="flex flex-wrap gap-2"><Button type="button" size="sm" variant="secondary" onClick={() => fileInput.current?.click()}><FileUp className="size-4" />Import quotation</Button><Button type="button" size="sm" variant="secondary" onClick={() => cameraInput.current?.click()}><Camera className="size-4" />Scan quotation</Button>{quotationFile && <span className="self-center text-xs text-muted-foreground">{quotationFile.name}</span>}</div><input ref={fileInput} type="file" accept=".xlsx,.xls,.csv,application/pdf,image/*" className="sr-only" onChange={(event) => void loadQuotation(event.target.files?.[0])} /><input ref={cameraInput} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(event) => void loadQuotation(event.target.files?.[0])} />
             {lines.map((line, index) => (
-              <div key={index} className="flex gap-2">
+              <div key={index} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(180px,1fr)_76px_92px_100px_76px_110px_36px]">
                 <Input
+                  list="saved-materials"
                   placeholder="Material description"
                   value={line.description}
                   onChange={(e) =>
@@ -250,7 +281,7 @@ function MigrationMaterialRequestsPage() {
                   }
                 />
                 <Input
-                  className="w-20"
+                  className="w-full"
                   type="number"
                   placeholder="Qty"
                   value={line.quantity}
@@ -265,7 +296,7 @@ function MigrationMaterialRequestsPage() {
                   }
                 />
                 <Input
-                  className="w-24"
+                  className="w-full"
                   placeholder="Unit"
                   value={line.unit}
                   onChange={(e) =>
@@ -276,22 +307,27 @@ function MigrationMaterialRequestsPage() {
                     )
                   }
                 />
+                <Input className="w-full" type="number" min="0" placeholder="Rate" value={line.rate} onChange={(e) => setLines(lines.map((item, i) => i === index ? { ...item, rate: e.target.value } : item))} />
+                <Input className="w-full" type="number" min="0" placeholder="GST %" value={line.gstRate} onChange={(e) => setLines(lines.map((item, i) => i === index ? { ...item, gstRate: e.target.value } : item))} />
+                <span className="flex min-h-9 items-center justify-end rounded-md border border-input bg-muted/40 px-2 text-sm font-medium tabular-nums">{((Number(line.quantity) || 0) * (Number(line.rate) || 0)).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 })}</span>
                 <Button type="button" variant="ghost" size="icon" aria-label="Remove material" className="shrink-0 text-muted-foreground hover:text-destructive" disabled={lines.length === 1} onClick={() => setLines(lines.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="size-4" /></Button>
               </div>
             ))}
+            <datalist id="saved-materials">{(savedMaterials ?? []).filter((item) => item.isActive !== false).map((item) => <option key={item._id} value={item.name}>{item.unit}</option>)}</datalist>
             <Button
               variant="secondary"
               size="sm"
               onClick={() =>
                 setLines([
                   ...lines,
-                  { description: "", quantity: "", unit: "" },
+                  { description: "", quantity: "", unit: "", rate: "", gstRate: "" },
                 ])
               }
             >
               <Plus className="size-4" />
               Add material
             </Button>
+            <div className="grid grid-cols-2 gap-2 rounded-md border bg-muted/30 p-3 text-sm sm:grid-cols-4"><div><p className="text-xs text-muted-foreground">Taxable amount</p><p className="font-semibold">{subtotal.toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 })}</p></div><div><p className="text-xs text-muted-foreground">CGST</p><p className="font-semibold">{(gstAmount / 2).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 })}</p></div><div><p className="text-xs text-muted-foreground">SGST</p><p className="font-semibold">{(gstAmount / 2).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 })}</p></div><div><p className="text-xs text-muted-foreground">Quotation total</p><p className="font-semibold">{(subtotal + gstAmount).toLocaleString("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 })}</p></div></div>
             <textarea
               className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               placeholder="Notes (optional)"

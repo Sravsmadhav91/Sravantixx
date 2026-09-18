@@ -291,6 +291,11 @@ export async function updateMigrationBuyer(buyerId: string, input: Record<string
   return response.json();
 }
 
+export async function deleteMigrationBuyer(buyerId: string) {
+  const response = await fetch(`${apiUrl}/api/buyers/${encodeURIComponent(buyerId)}`, { method: "DELETE", headers: await migrationHeaders() });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+}
+
 export async function createMigrationLoan(input: Record<string, unknown>) {
   const response = await fetch(`${apiUrl}/api/loans`, {
     method: "POST",
@@ -484,6 +489,30 @@ export function getMigrationSalesDashboard(options: { projectId: string; fromDat
 
 export async function createMigrationLead(input: Record<string, unknown>) {
   const response = await fetch(`${apiUrl}/api/leads`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function updateMigrationLead(leadId: string, input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/leads/${encodeURIComponent(leadId)}`, { method: "PATCH", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function deleteMigrationLead(leadId: string) {
+  const response = await fetch(`${apiUrl}/api/leads/${encodeURIComponent(leadId)}`, { method: "DELETE", headers: await migrationHeaders() });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.status === 204 ? null : response.json();
+}
+
+export async function updateMigrationLeadStatus(leadId: string, status: string) {
+  const response = await fetch(`${apiUrl}/api/leads/${encodeURIComponent(leadId)}/status`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export async function convertMigrationLead(leadId: string) {
+  const response = await fetch(`${apiUrl}/api/leads/${encodeURIComponent(leadId)}/convert`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: "{}" });
   if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
   return response.json();
 }
@@ -887,6 +916,13 @@ export async function uploadMigrationDocument(input: { linkedType: string; linke
   return response.json() as Promise<MigrationDocument>;
 }
 
+export async function ocrMigrationQuotation(file: File) {
+  const dataBase64 = await fileToBase64(file);
+  const response = await fetch(`${apiUrl}/api/ocr/quotation`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, contentType: file.type, dataBase64 }) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Quotation OCR failed (${response.status})`); }
+  return response.json() as Promise<{ content: string; pages: unknown[]; tables: unknown[] }>;
+}
+
 export async function updateMigrationDocument(documentId: string, input: { label?: string; docType?: string; notes?: string }) {
   const response = await fetch(`${apiUrl}/api/documents/${encodeURIComponent(documentId)}`, { method: "PATCH", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
   if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Could not update document (${response.status})`); }
@@ -922,3 +958,20 @@ export async function approveMigrationPurchaseOrder(orderId: string) {
   if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
   return response.json();
 }
+
+export function getMigrationPurchaseOrder(orderId: string) {
+  return migrationGet<{ order: MigrationPurchaseOrder; lines: Array<{ _id: string; description: string; quantity: number; unit?: string; rate: number; amount: number; gstRate?: number }>; project: { name: string; address?: string; city?: string } | null; shippingAddress?: string }>(`/api/purchase-orders/${encodeURIComponent(orderId)}`);
+}
+
+export async function updateMigrationPurchaseOrder(orderId: string, input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/purchase-orders/${encodeURIComponent(orderId)}`, { method: "PATCH", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
+}
+
+export type QuotationAnalysis = { weights: { priceWeight: number; deliveryWeight: number; complianceWeight: number }; rows: Array<{ materialRequestId: string; quotations: Array<Record<string, any>> }> };
+export function getQuotationAnalysis(requestId?: string) { return migrationGet<QuotationAnalysis>(`/api/quotation-analysis${requestId ? `?requestId=${encodeURIComponent(requestId)}` : ""}`); }
+export async function createMigrationQuotation(input: Record<string, unknown>) { const response = await fetch(`${apiUrl}/api/quotations`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) }); if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Quotation creation failed (${response.status})`); } return response.json(); }
+export async function reviewQuotation(quotationId: string, decision: "approved" | "rejected", reason?: string) { const response = await fetch(`${apiUrl}/api/quotations/${encodeURIComponent(quotationId)}/review`, { method: "POST", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ decision, reason }) }); if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Quotation review failed (${response.status})`); } return response.json(); }
+export async function updateQuotation(quotationId: string, input: Record<string, unknown>) { const response = await fetch(`${apiUrl}/api/quotations/${encodeURIComponent(quotationId)}`, { method: "PATCH", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) }); if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Quotation update failed (${response.status})`); } return response.json(); }
+export async function deleteQuotation(quotationId: string) { const response = await fetch(`${apiUrl}/api/quotations/${encodeURIComponent(quotationId)}`, { method: "DELETE", headers: await migrationHeaders() }); if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Quotation delete failed (${response.status})`); } }

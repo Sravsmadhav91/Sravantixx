@@ -35,6 +35,7 @@ export type NavItem = {
   primary?: boolean;
   /** The module key this nav item belongs to (see convex/lib/rbac.ts). Used to hide it from roles without access. */
   module: Module;
+  group?: "site";
 };
 
 export const NAV_ITEMS: NavItem[] = [
@@ -66,17 +67,18 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Sales Dashboard", to: "/sales-dashboard", icon: LineChart, available: true, module: "salesDashboard" },
   { label: "Collections", to: "/collections", icon: Wallet, available: true, module: "collections" },
   { label: "Construction", to: "/construction", icon: HardHat, available: true, module: "construction" },
-  { label: "Material Requests", to: "/material-requests", icon: ClipboardList, available: true, module: "materialRequests" },
-  { label: "Subcontracts", to: "/subcontracts", icon: FileSignature, available: true, module: "subcontracts" },
-  { label: "Labour", to: "/labour", icon: Wrench, available: true, module: "labour" },
+  { label: "Material Requests", to: "/material-requests", icon: ClipboardList, available: true, module: "materialRequests", group: "site" },
+  { label: "Quotation Analysis", to: "/quotation-analysis", icon: TrendingUp, available: true, module: "materialRequests", group: "site" },
+  { label: "Subcontracts", to: "/subcontracts", icon: FileSignature, available: true, module: "subcontracts", group: "site" },
+  { label: "Labour", to: "/labour", icon: Wrench, available: true, module: "labour", group: "site" },
   { label: "Loans", to: "/loans", icon: HandCoins, available: true, module: "loans" },
   { label: "Leads", to: "/leads", icon: TrendingUp, available: true, module: "leads" },
   { label: "Tasks", to: "/tasks", icon: ClipboardList, available: true, module: "tasks" },
   { label: "Documents", to: "/documents", icon: FolderOpen, available: true, module: "documents" },
   { label: "Accounting", to: "/accounting", icon: BookOpen, available: true, module: "accounting" },
-  { label: "Payables", to: "/payables", icon: Receipt, available: true, module: "payables" },
+  { label: "Payables", to: "/payables", icon: Receipt, available: true, module: "payables", group: "site" },
   { label: "Banking", to: "/banking", icon: Landmark, available: true, module: "banking" },
-  { label: "Inventory", to: "/inventory", icon: Package, available: true, module: "inventory" },
+  { label: "Inventory", to: "/inventory", icon: Package, available: true, module: "inventory", group: "site" },
   { label: "GST Returns", to: "/gst", icon: Percent, available: true, module: "gst" },
   { label: "Payroll", to: "/payroll", icon: UsersRound, available: true, module: "payroll" },
   { label: "TDS Filing", to: "/tds", icon: Landmark, available: true, module: "tds" },

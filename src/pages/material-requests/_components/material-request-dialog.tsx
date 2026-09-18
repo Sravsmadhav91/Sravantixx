@@ -32,6 +32,7 @@ const lineSchema = z.object({
   description: z.string().min(1, "Required"),
   unit: z.string().min(1, "Required"),
   quantity: z.string().min(1, "Required"),
+  rate: z.string().optional(),
 });
 
 const schema = z.object({
@@ -58,7 +59,7 @@ export default function MaterialRequestDialog({ open, onOpenChange }: MaterialRe
       projectId: "",
       neededByDate: "",
       notes: "",
-      lines: [{ description: "", unit: "", quantity: "" }],
+      lines: [{ description: "", unit: "", quantity: "", rate: "" }],
     },
   });
 
@@ -70,7 +71,7 @@ export default function MaterialRequestDialog({ open, onOpenChange }: MaterialRe
         projectId: "",
         neededByDate: "",
         notes: "",
-        lines: [{ description: "", unit: "", quantity: "" }],
+        lines: [{ description: "", unit: "", quantity: "", rate: "" }],
       });
     }
   }, [open, form]);
@@ -85,6 +86,7 @@ export default function MaterialRequestDialog({ open, onOpenChange }: MaterialRe
           description: l.description,
           unit: l.unit,
           quantity: Number(l.quantity),
+          rate: l.rate ? Number(l.rate) : undefined,
         })),
       });
       toast.success("Material request submitted");
@@ -154,6 +156,7 @@ export default function MaterialRequestDialog({ open, onOpenChange }: MaterialRe
                       </FormItem>
                     )}
                   />
+                  <FormField control={form.control} name={`lines.${idx}.rate`} render={({ field }) => (<FormItem className="w-24"><FormControl><Input type="number" min="0" placeholder="Rate" {...field} /></FormControl><FormMessage /></FormItem>)} />
                   <FormField
                     control={form.control}
                     name={`lines.${idx}.quantity`}
@@ -194,7 +197,7 @@ export default function MaterialRequestDialog({ open, onOpenChange }: MaterialRe
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => append({ description: "", unit: "", quantity: "" })}
+                onClick={() => append({ description: "", unit: "", quantity: "", rate: "" })}
               >
                 <Plus className="size-4" /> Add material
               </Button>

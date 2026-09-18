@@ -38,15 +38,49 @@ import MigrationBuyerFormDialog from "./_components/migration-buyer-form-dialog.
 type Tab = "bookings" | "activity" | "tasks" | "documents";
 
 export default function BuyerDetailPage() {
+  const { buyerId } = useParams<{ buyerId: string }>();
+  if (migrationApiEnabled) {
+    return <MigrationBuyerDetailPage buyerId={buyerId} />;
+  }
+  return <ConvexBuyerDetailPage />;
+}
+
+function MigrationBuyerDetailPage({ buyerId }: { buyerId?: string }) {
+  const [editOpen, setEditOpen] = useState(false);
+  const [tab, setTab] = useState<"bookings" | "documents">("bookings");
+  const { buyer, bookings } = useMigrationBuyerDetail(buyerId);
+
+  if (!buyerId) {
+    return <div className="p-8"><ErrorState><ErrorStateHeader><ErrorStateMedia variant="icon"><AlertTriangleIcon /></ErrorStateMedia><ErrorStateTitle>Buyer not found</ErrorStateTitle></ErrorStateHeader><ErrorStateContent><Button size="sm" asChild><Link to="/buyers">Back to buyers</Link></Button></ErrorStateContent></ErrorState></div>;
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-4xl space-y-6 p-4 md:p-8">
+      <PageHeader title={buyer?.name ?? "Buyer"} breadcrumbs={[{ label: "Buyers", to: "/buyers" }, { label: buyer?.name ?? "…" }]} actions={buyer && <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)}><Pencil className="size-4" />Edit</Button>} />
+      {buyer === undefined ? <div className="space-y-4"><Skeleton className="h-10 w-64" /><Skeleton className="h-32 w-full" /></div> : buyer === null ? <ErrorState><ErrorStateHeader><ErrorStateMedia variant="icon"><AlertTriangleIcon /></ErrorStateMedia><ErrorStateTitle>Buyer not available</ErrorStateTitle><ErrorStateDescription>It may have been removed.</ErrorStateDescription></ErrorStateHeader></ErrorState> : <>
+        <Card><CardContent className="grid gap-3 sm:grid-cols-2"><div className="flex items-center gap-2 text-sm"><Phone className="size-4 text-muted-foreground" />{buyer.phone}</div>{buyer.email && <div className="flex items-center gap-2 text-sm"><Mail className="size-4 text-muted-foreground" /><span className="break-all">{buyer.email}</span></div>}{buyer.address && <div className="flex items-start gap-2 text-sm sm:col-span-2"><MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />{buyer.address}</div>}{buyer.notes && <p className="text-sm text-muted-foreground sm:col-span-2">{buyer.notes}</p>}</CardContent></Card>
+        <div className="flex gap-1 border-b border-border pb-0">{([{ id: "bookings", label: "Bookings", icon: ScrollText }, { id: "documents", label: "Documents", icon: FolderOpen }] as const).map(({ id, label, icon: Icon }) => <button key={id} onClick={() => setTab(id)} className={cn("flex items-center gap-1.5 border-b-2 px-4 py-2.5 text-sm font-medium", tab === id ? "border-primary text-primary" : "border-transparent text-muted-foreground")}><Icon className="size-4" />{label}</button>)}</div>
+        {tab === "bookings" && (bookings === undefined ? <div className="space-y-3"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div> : bookings.length === 0 ? <Empty><EmptyHeader><EmptyMedia variant="icon"><ScrollText /></EmptyMedia><EmptyTitle>No bookings yet</EmptyTitle><EmptyDescription>Book a unit from the project inventory page.</EmptyDescription></EmptyHeader></Empty> : <div className="space-y-3">{bookings.map((booking) => <BookingRow key={booking._id} booking={booking} readOnly migrationMode />)}</div>)}
+        {tab === "documents" && <MigrationDocumentPanel linkedType="buyer" linkedId={buyerId} linkedName={buyer.name} />}
+        <MigrationBuyerFormDialog open={editOpen} onOpenChange={setEditOpen} buyer={buyer} />
+      </>}
+    </div>
+  );
+}
+
+function ConvexBuyerDetailPage() {
   const params = useParams<{ buyerId: string }>();
   const buyerId = params.buyerId as Id<"buyers"> | undefined;
   const [editOpen, setEditOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("bookings");
 
-  const buyer = useQuery(api.buyers.get, buyerId ? { buyerId } : "skip");
+  const buyer = useQuery(
+    api.buyers.get,
+    !migrationApiEnabled && buyerId ? { buyerId } : "skip",
+  );
   const bookings = useQuery(
     api.bookings.listByBuyer,
-    buyerId ? { buyerId } : "skip",
+    !migrationApiEnabled && buyerId ? { buyerId } : "skip",
   );
   const migrationDetail = useMigrationBuyerDetail(buyerId);
   const displayedBuyer = migrationApiEnabled ? migrationDetail.buyer : buyer;
@@ -190,7 +224,12 @@ export default function BuyerDetailPage() {
               ) : (
                 <div className="space-y-3">
                   {displayedBookings.map((booking) => (
-                    <BookingRow key={booking._id} booking={booking} readOnly={migrationApiEnabled} />
+                    <BookingRow
+                      key={booking._id}
+                      booking={booking}
+                      readOnly={migrationApiEnabled}
+                      migrationMode={migrationApiEnabled}
+                    />
                   ))}
                 </div>
               )}
