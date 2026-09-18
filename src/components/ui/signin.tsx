@@ -144,6 +144,10 @@ export const SignInButton = forwardRef<HTMLButtonElement, SignInButtonProps>(
       {supabaseAuthEnabled && <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Sign in to Sravantix</DialogTitle></DialogHeader>
+          <Button variant="secondary" onClick={() => { void activeAuth.signinWithGoogle().catch((error) => toast.error(error instanceof Error ? error.message : "Google sign-in failed")); }}>
+            Continue with Google
+          </Button>
+          <div className="relative py-1 text-center text-xs text-muted-foreground"><span className="bg-background px-2">or use email</span></div>
           <Input type="email" placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)} autoFocus />
           <DialogFooter>
             <Button variant="secondary" onClick={() => setEmailOpen(false)}>Cancel</Button>

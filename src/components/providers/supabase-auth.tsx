@@ -8,6 +8,7 @@ type SupabaseAuthContextValue = {
   isLoading: boolean;
   error: Error | null;
   signin: (email: string) => Promise<void>;
+  signinWithGoogle: () => Promise<void>;
   signout: () => Promise<void>;
 };
 
@@ -50,6 +51,18 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
       const { error: authError } = await supabase.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      });
+      if (authError) {
+        setError(authError);
+        throw authError;
+      }
+    },
+    signinWithGoogle: async () => {
+      if (!supabase) throw new Error("Supabase authentication is not configured");
+      setError(null);
+      const { error: authError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
       if (authError) {
         setError(authError);

@@ -16,6 +16,7 @@ export type AppAuth = {
 	isLoading: boolean;
 	error: Error | null;
 	signin: (email?: string) => Promise<void>;
+  signinWithGoogle: () => Promise<void>;
   signout: () => Promise<void>;
 };
 
@@ -38,6 +39,7 @@ export function useAuth(): AppAuth {
 				signin: async (email) => {
 					if (email) await supabaseAuth!.signin(email);
 			},
+	      signinWithGoogle: supabaseAuth!.signinWithGoogle,
 			signout: supabaseAuth!.signout,
 		};
 	}
@@ -48,6 +50,7 @@ export function useAuth(): AppAuth {
 		isLoading: herculesAuth.isLoading,
 		error: herculesAuth.error ?? null,
 		signin: async () => { await herculesAuth.signin(); },
+		signinWithGoogle: async () => { await herculesAuth.signin(); },
 		signout: herculesAuth.signout,
 	};
 }
