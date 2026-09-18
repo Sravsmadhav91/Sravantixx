@@ -236,6 +236,9 @@ export const updatePurchaseOrderStatus = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const user = await requireModuleAccess(ctx, "payables");
+    if (args.status === "sent" && user.role && user.role !== "owner" && user.role !== "project_manager") {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Only the owner or project manager can approve a purchase order" });
+    }
     const ownerId = effectiveOwnerId(user);
     const po = await ctx.db.get("purchaseOrders", args.poId);
     if (!po || po.ownerId !== ownerId) {

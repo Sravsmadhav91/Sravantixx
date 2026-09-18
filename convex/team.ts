@@ -12,6 +12,8 @@ const teamRoleValidator = v.union(
   v.literal("accountant"),
   v.literal("sales"),
   v.literal("site_engineer"),
+  v.literal("site_supervisor"),
+  v.literal("project_manager"),
 );
 
 // ── Role catalog (for the invite/edit-role dropdown) ──────────────────────────

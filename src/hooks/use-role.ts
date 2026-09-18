@@ -3,12 +3,14 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api.js";
 import { migrationApiEnabled, migrationGet } from "@/lib/migration-api.ts";
 
-export type UserRole = "owner" | "staff" | "accountant" | "sales" | "site_engineer";
+export type UserRole = "owner" | "staff" | "accountant" | "sales" | "site_engineer" | "site_supervisor" | "project_manager";
 
 /** Modules each scoped role can access. Mirrors convex/lib/rbac.ts — keep in sync. */
-const SCOPED_ROLE_MODULES: Record<"accountant" | "sales" | "site_engineer", string[]> = {
+const SCOPED_ROLE_MODULES: Record<"accountant" | "sales" | "site_engineer" | "site_supervisor" | "project_manager", string[]> = {
   accountant: ["dashboard", "accounting", "payables", "banking", "gst", "tds", "payroll", "subcontracts", "loans", "reports", "tasks", "documents", "settings"],
   sales: ["dashboard", "salesDashboard", "buyers", "bookings", "collections", "leads", "tasks", "documents", "settings"],
+  project_manager: ["dashboard", "projects", "construction", "materialRequests", "inventory", "payables", "subcontracts", "labour", "tasks", "documents", "reports", "settings"],
+  site_supervisor: ["dashboard", "projects", "construction", "materialRequests", "labour", "inventory", "tasks", "documents"],
   site_engineer: ["dashboard", "projects", "construction", "materialRequests", "labour", "inventory", "tasks", "documents", "settings"],
 };
 
@@ -30,7 +32,7 @@ export function useRole() {
   /** True if the current role can access the given module (nav path key, e.g. "accounting"). */
   const canAccess = (mod: string): boolean => {
     if (role === "owner" || role === "staff") return true;
-    return SCOPED_ROLE_MODULES[role as "accountant" | "sales" | "site_engineer"]?.includes(mod) ?? false;
+    return SCOPED_ROLE_MODULES[role as "accountant" | "sales" | "site_engineer" | "site_supervisor" | "project_manager"]?.includes(mod) ?? false;
   };
 
   return {

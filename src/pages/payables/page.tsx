@@ -40,9 +40,12 @@ import ConvertToInvoiceDialog from "./_components/convert-to-invoice-dialog.tsx"
 import ScanInvoiceDialog from "./_components/scan-invoice-dialog.tsx";
 import {
   migrationApiEnabled, createMigrationVendor,
+  approveMigrationPurchaseOrder,
+  postMigrationDraftPurchaseInvoices,
   type MigrationPurchaseOrder, type MigrationPurchaseInvoice, type MigrationApAgingRow,
 } from "@/lib/migration-api.ts";
 import { useMigrationFinance } from "@/hooks/use-migration-finance.ts";
+import { useRole } from "@/hooks/use-role.ts";
 import { toast } from "sonner";
 
 type PayablesDateFilter = "all" | "today" | "this_month" | "last_30" | "last_90";
@@ -68,6 +71,7 @@ function comparePayables<T extends { vendorName?: string; name?: string; date?: 
 }
 
 function MigrationPayablesPage() {
+  const { role } = useRole();
   const [tab, setTab] = useState<"orders" | "invoices" | "vendors" | "aging">("orders");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -75,8 +79,11 @@ function MigrationPayablesPage() {
   const [dateFilter, setDateFilter] = useState<PayablesDateFilter>("all");
   const [sortBy, setSortBy] = useState<PayablesSort>("date");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [postingDrafts, setPostingDrafts] = useState(false);
   const [name, setName] = useState(""); const [category, setCategory] = useState("contractor"); const [phone, setPhone] = useState(""); const [email, setEmail] = useState(""); const [gstin, setGstin] = useState(""); const [pan, setPan] = useState(""); const [address, setAddress] = useState(""); const [bankName, setBankName] = useState(""); const [bankAccount, setBankAccount] = useState(""); const [ifsc, setIfsc] = useState(""); const [notes, setNotes] = useState("");
   const submit = async () => { if (!name.trim()) { toast.error("Vendor name is required"); return; } try { await createMigrationVendor({ name, category, phone, email, gstin, pan, address, bankName, bankAccount, ifsc, notes }); toast.success("Vendor added"); setDialogOpen(false); window.location.reload(); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not add vendor"); } };
+  const approveOrder = async (orderId: string) => { if (!window.confirm("Approve and send this purchase order?")) return; try { await approveMigrationPurchaseOrder(orderId); toast.success("Purchase order approved"); window.location.reload(); } catch (error) { toast.error(error instanceof Error ? error.message : "Could not approve purchase order"); } };
+  const canApproveOrders = role === "owner" || role === "project_manager";
 
   const vendors = useMigrationFinance<Doc<"vendors">[]>("/api/payables/vendors");
   const purchaseOrders = useMigrationFinance<MigrationPurchaseOrder[]>("/api/purchase-orders");
@@ -113,6 +120,18 @@ function MigrationPayablesPage() {
   }).sort((a, b) => comparePayables(a, b, sortBy));
 
   const totalOutstanding = aging?.reduce((s, v) => s + v.total, 0) ?? 0;
+  const draftCount = invoices?.filter((invoice) => invoice.status === "draft").length ?? 0;
+  const postDrafts = async () => {
+    if (!draftCount || !window.confirm(`Post and approve ${draftCount} draft purchase invoice${draftCount === 1 ? "" : "s"}? Each invoice will create a journal entry.`)) return;
+    setPostingDrafts(true);
+    try {
+      const result = await postMigrationDraftPurchaseInvoices();
+      toast.success(`${result.posted} draft invoice${result.posted === 1 ? "" : "s"} posted and approved`);
+      if (result.failed) toast.error(`${result.failed} invoice${result.failed === 1 ? "" : "s"} could not be posted`);
+      window.location.reload();
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Could not post draft invoices"); }
+    finally { setPostingDrafts(false); }
+  };
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 p-4 md:p-8">
@@ -121,9 +140,10 @@ function MigrationPayablesPage() {
         subtitle="Purchase orders, invoices, vendors, and payment tracking"
         breadcrumbs={[{ label: "Accounts Payable" }]}
         actions={
-          <Button size="sm" variant="secondary" onClick={() => setDialogOpen(true)}>
-            <Plus className="size-4" /> New Vendor
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {draftCount > 0 && <Button size="sm" variant="secondary" onClick={() => void postDrafts()} disabled={postingDrafts}><CheckCircle className="size-4" />{postingDrafts ? "Posting..." : `Post ${draftCount} Draft${draftCount === 1 ? "" : "s"}`}</Button>}
+            <Button size="sm" variant="secondary" onClick={() => setDialogOpen(true)}><Plus className="size-4" /> New Vendor</Button>
+          </div>
         }
       />
 
@@ -243,6 +263,7 @@ function MigrationPayablesPage() {
                     <th className="px-3 py-2 text-right">Total</th>
                     <th className="px-3 py-2">Status</th>
                     <th className="px-3 py-2">Invoice</th>
+                    <th className="px-3 py-2">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -269,6 +290,7 @@ function MigrationPayablesPage() {
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </td>
+                      <td className="px-3 py-2">{po.status === "draft" && canApproveOrders ? <Button size="sm" variant="secondary" onClick={() => void approveOrder(po._id)}><CheckCircle className="size-3.5" />Approve PO</Button> : "—"}</td>
                     </tr>
                   ))}
                 </tbody>

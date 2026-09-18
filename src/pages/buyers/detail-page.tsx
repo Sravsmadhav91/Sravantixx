@@ -33,6 +33,7 @@ import MigrationDocumentPanel from "@/components/documents/migration-document-pa
 import { cn } from "@/lib/utils.ts";
 import { migrationApiEnabled } from "@/lib/migration-api.ts";
 import { useMigrationBuyerDetail } from "@/hooks/use-migration-buyer-detail.ts";
+import MigrationBuyerFormDialog from "./_components/migration-buyer-form-dialog.tsx";
 
 type Tab = "bookings" | "activity" | "tasks" | "documents";
 
@@ -87,7 +88,7 @@ export default function BuyerDetailPage() {
           { label: displayedBuyer?.name ?? "…" },
         ]}
         actions={
-          !migrationApiEnabled && buyer && (
+          displayedBuyer && (
             <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)}>
               <Pencil className="size-4" />
               Edit
@@ -227,7 +228,7 @@ export default function BuyerDetailPage() {
             )
           )}
 
-          {!migrationApiEnabled && <BuyerFormDialog open={editOpen} onOpenChange={setEditOpen} buyer={buyer} />}
+          {migrationApiEnabled ? <MigrationBuyerFormDialog open={editOpen} onOpenChange={setEditOpen} buyer={displayedBuyer} /> : <BuyerFormDialog open={editOpen} onOpenChange={setEditOpen} buyer={buyer} />}
         </>
       )}
     </div>

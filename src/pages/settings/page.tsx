@@ -48,7 +48,7 @@ import {
   updateMigrationTeamMemberRole,
 } from "@/lib/migration-api.ts";
 
-type RoleCatalogEntry = { role: "staff" | "accountant" | "sales" | "site_engineer"; label: string; description: string };
+type RoleCatalogEntry = { role: "staff" | "accountant" | "sales" | "site_engineer" | "site_supervisor" | "project_manager"; label: string; description: string };
 
 function MemberRow({
   member,

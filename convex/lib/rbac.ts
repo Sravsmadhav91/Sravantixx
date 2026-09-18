@@ -34,15 +34,17 @@ export const MODULES = [
 export type Module = (typeof MODULES)[number];
 
 /** Scoped roles that are restricted to a fixed module set. "owner" and "staff" are handled separately. */
-export type ScopedRole = "accountant" | "sales" | "site_engineer";
+export type ScopedRole = "accountant" | "sales" | "site_engineer" | "site_supervisor" | "project_manager";
 
-export const SCOPED_ROLES: ScopedRole[] = ["accountant", "sales", "site_engineer"];
+export const SCOPED_ROLES: ScopedRole[] = ["accountant", "sales", "project_manager", "site_supervisor", "site_engineer"];
 
 export const ROLE_LABELS: Record<"owner" | "staff" | ScopedRole, string> = {
   owner: "Owner",
   staff: "Staff (all modules)",
   accountant: "Accountant",
   sales: "Sales",
+  project_manager: "Project Manager",
+  site_supervisor: "Site Supervisor",
   site_engineer: "Site Engineer",
 };
 
@@ -51,6 +53,8 @@ export const ROLE_DESCRIPTIONS: Record<"owner" | "staff" | ScopedRole, string> =
   staff: "Full read + write access to every module. Cannot delete records.",
   accountant: "Accounting, Payables, Banking, GST Returns, TDS Filing, Payroll, Subcontracts, Loans, and Reports only.",
   sales: "Sales Dashboard, Buyers, Bookings, Collections, Leads, and Tasks only.",
+  project_manager: "Projects, Construction, Material Requests, Inventory, Payables, and Purchase Order approvals.",
+  site_supervisor: "Projects, Construction, Material Requests, Labour, Inventory, Tasks, and Documents only.",
   site_engineer: "Projects, Construction, Material Requests, Labour, and Inventory, and Tasks only.",
 };
 
@@ -58,6 +62,8 @@ export const ROLE_DESCRIPTIONS: Record<"owner" | "staff" | ScopedRole, string> =
 const SCOPED_ROLE_MODULES: Record<ScopedRole, Module[]> = {
   accountant: ["dashboard", "accounting", "payables", "banking", "gst", "tds", "payroll", "subcontracts", "loans", "reports", "tasks", "documents", "settings"],
   sales: ["dashboard", "salesDashboard", "buyers", "bookings", "collections", "leads", "tasks", "documents", "settings"],
+  project_manager: ["dashboard", "projects", "construction", "materialRequests", "inventory", "payables", "subcontracts", "labour", "tasks", "documents", "reports", "settings"],
+  site_supervisor: ["dashboard", "projects", "construction", "materialRequests", "labour", "inventory", "tasks", "documents"],
   site_engineer: ["dashboard", "projects", "construction", "materialRequests", "labour", "inventory", "tasks", "documents", "settings"],
 };
 

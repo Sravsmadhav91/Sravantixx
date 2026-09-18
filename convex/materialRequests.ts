@@ -181,9 +181,8 @@ export const reviewMaterialRequest = mutation({
   },
   handler: async (ctx, args): Promise<void> => {
     const user = await requireUser(ctx);
-    // Only owner or accountant can approve/reject — not the site engineer who raised it.
-    if (user.role === "sales" || user.role === "site_engineer") {
-      throw new ConvexError({ code: "FORBIDDEN", message: "Only the owner or accountant can review requests" });
+    if (user.role && user.role !== "owner" && user.role !== "project_manager") {
+      throw new ConvexError({ code: "FORBIDDEN", message: "Only the owner or project manager can review requests" });
     }
     const ownerId = effectiveOwnerId(user);
     const request = await ctx.db.get("materialRequests", args.requestId);

@@ -4,6 +4,7 @@ import { createMigrationSubcontract, migrationGet, updateMigrationSubcontract } 
 import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { Input } from "@/components/ui/input.tsx";
+import { SearchableSelect } from "@/components/ui/searchable-select.tsx";
 
 type Option = { _id: string; name: string; pan?: string };
 
@@ -56,7 +57,7 @@ export default function MigrationSubcontractDialog({ open, onOpenChange, editing
         <DialogHeader><DialogTitle>{editing ? "Edit subcontract" : "New subcontract"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <select className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">Select project *</option>{projects.map((project) => <option key={project._id} value={project._id}>{project.name}</option>)}</select>
-          <select className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm" value={vendorId} onChange={(event) => setVendorId(event.target.value)}><option value="">Select vendor *</option>{vendors.map((vendor) => <option key={vendor._id} value={vendor._id}>{vendor.name}{vendor.pan ? "" : " (PAN missing)"}</option>)}</select>
+          <SearchableSelect value={vendorId} onValueChange={setVendorId} options={vendors.map((vendor) => ({ value: vendor._id, label: vendor.name, sub: vendor.pan ? undefined : "PAN missing", keywords: `${vendor.name} ${vendor.pan ?? ""}` }))} placeholder="Select vendor *" searchPlaceholder="Type vendor name…" />
           <Input placeholder="Contract title *" value={title} onChange={(event) => setTitle(event.target.value)} />
           <Input type="number" placeholder="Contract value (₹) *" value={contractValue} onChange={(event) => setContractValue(event.target.value)} />
           <div className="grid grid-cols-2 gap-3"><Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /><Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} /></div>

@@ -34,7 +34,7 @@ export default defineSchema({
     /**
      * "owner" = full access, including deletes.
      * "staff" = generic role, full read/write access to every module, no deletes.
-     * "accountant" | "sales" | "site_engineer" = scoped roles, restricted to their module set (see convex/lib/rbac.ts), no deletes.
+    * "accountant" | "sales" | "site_engineer" | "site_supervisor" | "project_manager" = scoped roles, restricted to their module set (see convex/lib/rbac.ts), no deletes.
      * Defaults to "owner" if absent.
      */
     role: v.optional(
@@ -44,6 +44,8 @@ export default defineSchema({
         v.literal("accountant"),
         v.literal("sales"),
         v.literal("site_engineer"),
+        v.literal("site_supervisor"),
+        v.literal("project_manager"),
       ),
     ),
     /** For staff users: the owner's user ID whose data they can access. */
@@ -76,6 +78,8 @@ export default defineSchema({
         v.literal("accountant"),
         v.literal("sales"),
         v.literal("site_engineer"),
+        v.literal("site_supervisor"),
+        v.literal("project_manager"),
       ),
     ),
   })
