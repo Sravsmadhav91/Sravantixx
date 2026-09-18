@@ -59,6 +59,7 @@ export function SupabaseAuthProvider({ children }: { children: React.ReactNode }
     signout: async () => {
       if (!supabase) return;
       const { error: authError } = await supabase.auth.signOut();
+      setUser(null);
       if (authError) throw authError;
     },
   }), [error, isLoading, user]);

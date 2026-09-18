@@ -37,6 +37,7 @@ import { APPROVAL_STATUS_CLASSES, APPROVAL_STATUS_LABELS } from "@/lib/payments.
 import { useRole } from "@/hooks/use-role.ts";
 import { cn } from "@/lib/utils.ts";
 import { cancelMigrationBooking } from "@/lib/migration-api.ts";
+import MigrationBookingRow from "./migration-booking-row.tsx";
 
 type BookingRowProps = {
   booking: BookingWithDetails;
@@ -47,6 +48,7 @@ type BookingRowProps = {
 };
 
 export default function BookingRow({ booking, showBuyer, readOnly = false, migrationMode = false }: BookingRowProps) {
+  if (readOnly && migrationMode) return <MigrationBookingRow booking={booking} showBuyer={showBuyer} />;
   if (readOnly) return <ReadOnlyBookingRow booking={booking} showBuyer={showBuyer} migrationMode={migrationMode} />;
   return <EditableBookingRow booking={booking} showBuyer={showBuyer} />;
 }

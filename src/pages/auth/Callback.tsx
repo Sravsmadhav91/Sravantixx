@@ -11,7 +11,17 @@ import { supabase } from "@/lib/supabase.ts";
 function SupabaseCallback() {
   const navigate = useNavigate();
   useEffect(() => {
-    supabase?.auth.getSession().finally(() => navigate("/", { replace: true }));
+    const finishSignIn = async () => {
+      if (!supabase) {
+        navigate("/", { replace: true });
+        return;
+      }
+      const code = new URL(window.location.href).searchParams.get("code");
+      if (code) await supabase.auth.exchangeCodeForSession(code);
+      else await supabase.auth.getSession();
+      navigate("/", { replace: true });
+    };
+    void finishSignIn().catch(() => navigate("/", { replace: true }));
   }, [navigate]);
   return (
     <div className="flex flex-col items-center justify-center h-svh gap-4">

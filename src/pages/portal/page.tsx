@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { useQuery } from "convex/react";
 import { Building2, ScrollText } from "lucide-react";
 import { api } from "@/convex/_generated/api.js";
@@ -15,19 +16,23 @@ import {
 import { formatCompactInr } from "@/lib/real-estate.ts";
 import { formatDate } from "@/lib/format.ts";
 import PageHeader from "@/components/page-header.tsx";
-import { migrationApiEnabled } from "@/lib/migration-api.ts";
+import { migrationApiEnabled, migrationPortalGet } from "@/lib/migration-api.ts";
+import type { MigrationStatement } from "@/lib/migration-api.ts";
 
 function MigrationPortalHomePage() {
+  const [bookings, setBookings] = useState<Array<{ booking: MigrationStatement["booking"]; unit: MigrationStatement["unit"]; projectName: string; isCoBuyer: boolean }> | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => { void migrationPortalGet<typeof bookings>("/api/portal/bookings").then(setBookings).catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load bookings")); }, []);
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 p-4 md:p-8">
       <PageHeader title="My Bookings" breadcrumbs={[{ label: "My Bookings" }]} />
-      <Empty>
+      {error ? <Empty><EmptyHeader><EmptyTitle>{error}</EmptyTitle></EmptyHeader></Empty> : !bookings ? <div className="space-y-4"><Skeleton className="h-32 w-full" /><Skeleton className="h-32 w-full" /></div> : bookings.length === 0 ? <Empty>
         <EmptyHeader>
           <EmptyMedia variant="icon"><ScrollText /></EmptyMedia>
-          <EmptyTitle>Portal data is coming from migration mode</EmptyTitle>
-          <EmptyDescription>Buyer booking data is currently being served through the migration backend.</EmptyDescription>
+          <EmptyTitle>No bookings found</EmptyTitle>
+          <EmptyDescription>Your signed-in email is not linked to a buyer booking.</EmptyDescription>
         </EmptyHeader>
-      </Empty>
+      </Empty> : <div className="grid gap-4 sm:grid-cols-2">{bookings.map(({ booking, unit, projectName, isCoBuyer }) => <Link key={booking._id} to={`/portal/bookings/${booking._id}`}><Card className="h-full"><CardContent className="space-y-3"><div className="flex items-center justify-between"><Badge>{booking.status}</Badge>{isCoBuyer && <Badge variant="secondary">Co-buyer</Badge>}</div><p className="font-medium">{projectName}</p><p className="text-sm text-muted-foreground">Unit {unit?.number ?? "-"}</p><div className="flex justify-between border-t pt-3 text-sm"><span>Agreement value</span><strong>{formatCompactInr(booking.agreementValue)}</strong></div><p className="text-xs text-muted-foreground">Booked on {formatDate(booking.bookingDate)}</p></CardContent></Card></Link>)}</div>}
     </div>
   );
 }

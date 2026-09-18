@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "convex/react";
 import {
@@ -42,21 +43,34 @@ import {
 import { downloadReceipt } from "@/lib/pdf.ts";
 import { cn } from "@/lib/utils.ts";
 import PageHeader from "@/components/page-header.tsx";
-import { migrationApiEnabled } from "@/lib/migration-api.ts";
+import { migrationApiEnabled, migrationPortalDownload, migrationPortalGet } from "@/lib/migration-api.ts";
+import type { MigrationStatement } from "@/lib/migration-api.ts";
 
 type Tab = "schedule" | "documents";
 
 function MigrationPortalBookingDetailPage() {
+  const { bookingId } = useParams<{ bookingId: string }>();
+  const [statement, setStatement] = useState<MigrationStatement | null>(null);
+  const [documents, setDocuments] = useState<Array<{ _id: string; fileName?: string; label?: string }>>([]);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!bookingId) return;
+    void Promise.all([
+      migrationPortalGet<MigrationStatement>(`/api/portal/bookings/${encodeURIComponent(bookingId)}/statement`),
+      migrationPortalGet<Array<{ _id: string; fileName?: string; label?: string }>>(`/api/portal/bookings/${encodeURIComponent(bookingId)}/documents`),
+    ]).then(([loadedStatement, loadedDocuments]) => { setStatement(loadedStatement); setDocuments(loadedDocuments); }).catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load booking"));
+  }, [bookingId]);
+  const downloadDocument = async (documentId: string, fileName: string) => {
+    try { const blob = await migrationPortalDownload(`/api/portal/documents/${encodeURIComponent(documentId)}/download`); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = fileName; anchor.click(); URL.revokeObjectURL(url); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not download document"); }
+  };
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 p-4 md:p-8">
       <PageHeader title="Booking details" breadcrumbs={[{ label: "My Bookings", to: "/portal" }, { label: "Booking details" }]} />
-      <Empty>
-        <EmptyHeader>
-          <EmptyMedia variant="icon"><FolderOpen /></EmptyMedia>
-          <EmptyTitle>Booking details are in migration mode</EmptyTitle>
-          <EmptyDescription>The migration backend is currently serving buyer booking details.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      {error ? <Empty><EmptyHeader><EmptyTitle>{error}</EmptyTitle></EmptyHeader></Empty> : !statement ? <div className="space-y-4"><Skeleton className="h-10 w-72" /><Skeleton className="h-40 w-full" /></div> : <>
+        <Card><CardContent className="space-y-3"><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">{statement.unit?.projectName ?? "-"} · {statement.unit?.number ?? "-"}</h2><Badge>{statement.booking.status}</Badge></div><p className="text-sm text-muted-foreground">Primary buyer: {statement.buyer?.name ?? "-"}</p><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-md bg-muted/60 p-3"><p className="text-xs text-muted-foreground">Agreement</p><strong>{formatCompactInr(statement.booking.agreementValue)}</strong></div><div className="rounded-md bg-muted/60 p-3"><p className="text-xs text-muted-foreground">Received</p><strong>{formatCompactInr(statement.totalReceived)}</strong></div><div className="rounded-md bg-muted/60 p-3"><p className="text-xs text-muted-foreground">Outstanding</p><strong>{formatCompactInr(statement.outstanding)}</strong></div></div></CardContent></Card>
+        <Card><CardContent><h2 className="mb-3 font-semibold">Payment schedule</h2>{statement.installments.length === 0 ? <p className="text-sm text-muted-foreground">No installments available.</p> : <div className="space-y-2">{statement.installments.map((item) => <div key={item._id} className="flex justify-between border-b py-2 text-sm"><span>{item.milestone}</span><span>{formatCompactInr(item.amount)} · {item.status}</span></div>)}</div>}</CardContent></Card>
+        <Card><CardContent><h2 className="mb-3 font-semibold">Documents</h2>{documents.length === 0 ? <p className="text-sm text-muted-foreground">No documents available.</p> : <div className="space-y-2">{documents.map((item) => <div key={item._id} className="flex items-center justify-between border-b py-2 text-sm"><span>{item.label || item.fileName || "Document"}</span><Button size="sm" variant="secondary" onClick={() => void downloadDocument(item._id, item.fileName || "document")}><Download className="size-4" />Download</Button></div>)}</div>}</CardContent></Card>
+      </>}
     </div>
   );
 }

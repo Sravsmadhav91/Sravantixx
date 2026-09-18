@@ -382,7 +382,13 @@ function SignInPrompt() {
 }
 
 export default function AppLayout() {
+  const { isAuthenticated, isLoading } = useAuth();
+
   if (migrationApiEnabled) {
+    if (isLoading) {
+      return <div className="flex min-h-screen"><Skeleton className="hidden h-screen w-64 md:block" /><div className="flex-1 space-y-4 p-6"><Skeleton className="h-10 w-64" /><Skeleton className="h-40 w-full" /></div></div>;
+    }
+    if (!isAuthenticated) return <SignInPrompt />;
     return <SignedInShell />;
   }
 

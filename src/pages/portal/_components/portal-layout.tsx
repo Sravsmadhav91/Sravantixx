@@ -183,20 +183,27 @@ function PortalSignInPrompt() {
 }
 
 function MigrationPortalLayout() {
+  const { user, signout, isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return <div className="flex min-h-screen items-center justify-center"><Skeleton className="h-10 w-48" /></div>;
+  if (!isAuthenticated) return <PortalSignInPrompt />;
+  const name = user?.profile.name ?? "Buyer";
+  const initials = name.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase();
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
-      <Empty className="max-w-md">
-        <EmptyHeader>
-          <EmptyMedia variant="icon"><Lock /></EmptyMedia>
-          <EmptyTitle>Portal data is in migration mode</EmptyTitle>
-          <EmptyDescription>The buyer portal is temporarily served via the migration backend while the app remains in independent mode.</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent className="flex-row justify-center gap-2">
-          <Button size="sm" variant="ghost" onClick={() => window.location.assign("/")}>
-            Back home
-          </Button>
-        </EmptyContent>
-      </Empty>
+    <div className="flex min-h-screen bg-background">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-sidebar md:flex">
+        <div className="px-5 py-5"><Logo onDark /></div>
+        <p className="px-6 text-xs font-medium uppercase tracking-wide text-sidebar-foreground/50">Buyer Portal</p>
+        <nav className="flex flex-col gap-1 px-3 pt-3">
+          <NavLink to="/portal" end className={({ isActive }) => cn("rounded-md px-3 py-2 text-sm font-medium", isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/75 hover:bg-sidebar-accent/60")}>My Bookings</NavLink>
+        </nav>
+        <div className="flex-1" />
+        <div className="flex items-center gap-3 border-t border-sidebar-border p-3">
+          <Avatar className="size-9"><AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground text-xs">{initials || "BU"}</AvatarFallback></Avatar>
+          <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-sidebar-foreground">{name}</p><p className="truncate text-xs text-sidebar-foreground/60">{user?.profile.email ?? "Signed in"}</p></div>
+          <Button variant="ghost" size="icon" aria-label="Sign out" onClick={() => void signout()} className="text-sidebar-foreground/70"><LogOut className="size-4" /></Button>
+        </div>
+      </aside>
+      <div className="flex min-w-0 flex-1 flex-col"><header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 md:hidden"><Logo /><SignInButton size="sm" variant="secondary" /></header><main className="flex-1 pb-6"><Outlet /></main></div>
     </div>
   );
 }

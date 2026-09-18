@@ -62,6 +62,32 @@ export async function migrationHeaders(): Promise<HeadersInit> {
   throw new Error("A Supabase session or a development-safe migration owner header is required");
 }
 
+export async function migrationPortalHeaders(): Promise<HeadersInit> {
+  if (!supabase) throw new Error("Supabase authentication is required for the buyer portal");
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("Sign in with the buyer email to open the buyer portal");
+  return { Authorization: `Bearer ${token}` };
+}
+
+export async function migrationPortalGet<T>(path: string): Promise<T> {
+  const response = await fetch(`${apiUrl}${path}`, { headers: await migrationPortalHeaders() });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `Migration portal request failed (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function migrationPortalDownload(path: string): Promise<Blob> {
+  const response = await fetch(`${apiUrl}${path}`, { headers: await migrationPortalHeaders() });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error || `Migration portal download failed (${response.status})`);
+  }
+  return response.blob();
+}
+
 export async function listMigrationProjects(): Promise<MigrationProject[]> {
   const response = await fetch(`${apiUrl}/api/projects`, {
     headers: await migrationHeaders(),
@@ -866,4 +892,10 @@ export async function fetchMigrationDocumentBlob(documentId: string) {
   const response = await fetch(`${apiUrl}/api/documents/${encodeURIComponent(documentId)}/download`, { headers: await migrationHeaders() });
   if (!response.ok) throw new Error(`Could not download document (${response.status})`);
   return response.blob();
+}
+
+export async function updateMigrationBooking(bookingId: string, input: Record<string, unknown>) {
+  const response = await fetch(`${apiUrl}/api/bookings/${encodeURIComponent(bookingId)}`, { method: "PATCH", headers: { ...await migrationHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(input) });
+  if (!response.ok) { const body = await response.json().catch(() => ({})); throw new Error(body.error || `Migration API request failed (${response.status})`); }
+  return response.json();
 }
