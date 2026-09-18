@@ -1,5 +1,6 @@
 export const DOC_TYPE_LABELS = {
   sale_agreement: "Sale Agreement",
+  sale_deed: "Sale Deed",
   possession_letter: "Possession Letter",
   noc: "NOC",
   demand_notice: "Demand Notice",

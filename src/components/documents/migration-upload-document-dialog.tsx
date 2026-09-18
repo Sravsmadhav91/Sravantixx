@@ -60,7 +60,8 @@ export default function MigrationUploadDocumentDialog({ open, onOpenChange, link
     setFile(f);
     if (!label) setLabel(f.name.replace(/\.[^.]+$/, ""));
     const name = f.name.toLowerCase();
-    if (name.includes("agreement") || name.includes("sale")) setDocType("sale_agreement");
+    if (name.includes("deed") || name.includes("registration")) setDocType("sale_deed");
+    else if (name.includes("agreement") || name.includes("sale")) setDocType("sale_agreement");
     else if (name.includes("possession")) setDocType("possession_letter");
     else if (name.includes("noc")) setDocType("noc");
     else if (name.includes("demand") || name.includes("notice")) setDocType("demand_notice");

@@ -40,10 +40,14 @@ import {
   INSTALLMENT_STATUS_LABELS,
   PAYMENT_MODE_LABELS,
 } from "@/lib/payments.ts";
-import { downloadReceipt } from "@/lib/pdf.ts";
+import { downloadBookingConfirmation, downloadReceipt } from "@/lib/pdf.ts";
 import { cn } from "@/lib/utils.ts";
 import PageHeader from "@/components/page-header.tsx";
-import { migrationApiEnabled, migrationPortalDownload, migrationPortalGet } from "@/lib/migration-api.ts";
+import {
+  migrationApiEnabled,
+  migrationPortalDownload,
+  migrationPortalGet,
+} from "@/lib/migration-api.ts";
 import type { MigrationStatement } from "@/lib/migration-api.ts";
 
 type Tab = "schedule" | "documents";
@@ -51,26 +55,290 @@ type Tab = "schedule" | "documents";
 function MigrationPortalBookingDetailPage() {
   const { bookingId } = useParams<{ bookingId: string }>();
   const [statement, setStatement] = useState<MigrationStatement | null>(null);
-  const [documents, setDocuments] = useState<Array<{ _id: string; fileName?: string; label?: string }>>([]);
+  const [portalTab, setPortalTab] = useState<"payments" | "construction" | "documents">("payments");
+  const [construction, setConstruction] = useState<{ project: { name: string; city?: string }; stages: Array<{ _id: string; name: string; percentComplete: number; targetDate?: string; completedDate?: string }> } | null>(null);
+  const [documents, setDocuments] = useState<
+    Array<{
+      _id: string;
+      fileName?: string;
+      label?: string;
+      statusOnly?: boolean;
+    }>
+  >([]);
   const [error, setError] = useState("");
   useEffect(() => {
     if (!bookingId) return;
     void Promise.all([
-      migrationPortalGet<MigrationStatement>(`/api/portal/bookings/${encodeURIComponent(bookingId)}/statement`),
-      migrationPortalGet<Array<{ _id: string; fileName?: string; label?: string }>>(`/api/portal/bookings/${encodeURIComponent(bookingId)}/documents`),
-    ]).then(([loadedStatement, loadedDocuments]) => { setStatement(loadedStatement); setDocuments(loadedDocuments); }).catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load booking"));
+      migrationPortalGet<MigrationStatement>(
+        `/api/portal/bookings/${encodeURIComponent(bookingId)}/statement`,
+      ),
+      migrationPortalGet<typeof construction>(
+        `/api/portal/bookings/${encodeURIComponent(bookingId)}/construction`,
+      ),
+      migrationPortalGet<
+        Array<{
+          _id: string;
+          fileName?: string;
+          label?: string;
+          statusOnly?: boolean;
+        }>
+      >(`/api/portal/bookings/${encodeURIComponent(bookingId)}/documents`),
+    ])
+      .then(([loadedStatement, loadedConstruction, loadedDocuments]) => {
+        setStatement(loadedStatement);
+        setConstruction(loadedConstruction);
+        setDocuments(loadedDocuments);
+      })
+      .catch((reason) =>
+        setError(
+          reason instanceof Error ? reason.message : "Could not load booking",
+        ),
+      );
   }, [bookingId]);
   const downloadDocument = async (documentId: string, fileName: string) => {
-    try { const blob = await migrationPortalDownload(`/api/portal/documents/${encodeURIComponent(documentId)}/download`); const url = URL.createObjectURL(blob); const anchor = document.createElement("a"); anchor.href = url; anchor.download = fileName; anchor.click(); URL.revokeObjectURL(url); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not download document"); }
+    try {
+      const blob = await migrationPortalDownload(
+        `/api/portal/documents/${encodeURIComponent(documentId)}/download`,
+      );
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = fileName;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Could not download document",
+      );
+    }
+  };
+  const downloadConfirmation = () => {
+    if (!statement) return;
+    downloadBookingConfirmation({
+      bookingDate: statement.booking.bookingDate,
+      agreementValue: statement.booking.agreementValue,
+      buyer: {
+        name: statement.buyer?.name ?? "-",
+        phone: statement.buyer?.phone ?? "-",
+        email: statement.buyer?.email,
+        pan: statement.buyer?.pan,
+        address: statement.buyer?.address,
+      },
+      project: {
+        name: statement.unit?.projectName ?? "-",
+        location: statement.unit?.projectCity,
+        rera: statement.unit?.projectRera,
+      },
+      unit: {
+        number: statement.unit?.number ?? "-",
+        block: statement.unit?.block,
+        configuration: statement.unit?.configuration,
+        areaSqft: statement.unit?.areaSqft,
+        floor: statement.unit?.floor,
+      },
+      receipts: statement.receipts.map((receipt) => ({
+        date: receipt.paymentDate,
+        amount: receipt.amount,
+        mode: receipt.paymentMode,
+        reference: receipt.referenceNumber,
+      })),
+    });
+  };
+  const downloadPaymentReceipt = (receiptId: string) => {
+    if (!statement) return;
+    const receipt = statement.receipts.find((item) => item._id === receiptId);
+    if (!receipt) return;
+    downloadReceipt({
+      receiptNumber: receipt._id.slice(-8).toUpperCase(),
+      receiptDate: receipt.paymentDate,
+      amount: receipt.amount,
+      paymentMode: receipt.paymentMode,
+      chequeRef: receipt.referenceNumber,
+      notes: receipt.notes,
+      buyer: {
+        name: statement.buyer?.name ?? "-",
+        phone: statement.buyer?.phone ?? "-",
+        email: statement.buyer?.email,
+        pan: statement.buyer?.pan,
+      },
+      project: { name: statement.unit?.projectName ?? "-", rera: statement.unit?.projectRera },
+      unit: {
+        number: statement.unit?.number ?? "-",
+        block: statement.unit?.block,
+        configuration: statement.unit?.configuration,
+      },
+      agreementValue: statement.booking.agreementValue,
+      totalReceived: statement.totalReceived,
+      balanceOutstanding: statement.outstanding,
+    });
   };
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 p-4 md:p-8">
-      <PageHeader title="Booking details" breadcrumbs={[{ label: "My Bookings", to: "/portal" }, { label: "Booking details" }]} />
-      {error ? <Empty><EmptyHeader><EmptyTitle>{error}</EmptyTitle></EmptyHeader></Empty> : !statement ? <div className="space-y-4"><Skeleton className="h-10 w-72" /><Skeleton className="h-40 w-full" /></div> : <>
-        <Card><CardContent className="space-y-3"><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">{statement.unit?.projectName ?? "-"} · {statement.unit?.number ?? "-"}</h2><Badge>{statement.booking.status}</Badge></div><p className="text-sm text-muted-foreground">Primary buyer: {statement.buyer?.name ?? "-"}</p><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-md bg-muted/60 p-3"><p className="text-xs text-muted-foreground">Agreement</p><strong>{formatCompactInr(statement.booking.agreementValue)}</strong></div><div className="rounded-md bg-muted/60 p-3"><p className="text-xs text-muted-foreground">Received</p><strong>{formatCompactInr(statement.totalReceived)}</strong></div><div className="rounded-md bg-muted/60 p-3"><p className="text-xs text-muted-foreground">Outstanding</p><strong>{formatCompactInr(statement.outstanding)}</strong></div></div></CardContent></Card>
-        <Card><CardContent><h2 className="mb-3 font-semibold">Payment schedule</h2>{statement.installments.length === 0 ? <p className="text-sm text-muted-foreground">No installments available.</p> : <div className="space-y-2">{statement.installments.map((item) => <div key={item._id} className="flex justify-between border-b py-2 text-sm"><span>{item.milestone}</span><span>{formatCompactInr(item.amount)} · {item.status}</span></div>)}</div>}</CardContent></Card>
-        <Card><CardContent><h2 className="mb-3 font-semibold">Documents</h2>{documents.length === 0 ? <p className="text-sm text-muted-foreground">No documents available.</p> : <div className="space-y-2">{documents.map((item) => <div key={item._id} className="flex items-center justify-between border-b py-2 text-sm"><span>{item.label || item.fileName || "Document"}</span><Button size="sm" variant="secondary" onClick={() => void downloadDocument(item._id, item.fileName || "document")}><Download className="size-4" />Download</Button></div>)}</div>}</CardContent></Card>
-      </>}
+      <PageHeader
+        title="Booking details"
+        breadcrumbs={[
+          { label: "My Bookings", to: "/portal" },
+          { label: "Booking details" },
+        ]}
+      />
+      {error ? (
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>{error}</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
+      ) : !statement ? (
+        <div className="space-y-4">
+          <Skeleton className="h-10 w-72" />
+          <Skeleton className="h-40 w-full" />
+        </div>
+      ) : (
+        <>
+          <Card>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">
+                  {statement.unit?.projectName ?? "-"} ·{" "}
+                  {statement.unit?.number ?? "-"}
+                </h2>
+                <Badge>{statement.booking.status}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Primary buyer: {statement.buyer?.name ?? "-"}
+              </p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-md bg-muted/60 p-3">
+                  <p className="text-xs text-muted-foreground">Agreement</p>
+                  <strong>
+                    {formatCompactInr(statement.booking.agreementValue)}
+                  </strong>
+                </div>
+                <div className="rounded-md bg-muted/60 p-3">
+                  <p className="text-xs text-muted-foreground">Received</p>
+                  <strong>{formatCompactInr(statement.totalReceived)}</strong>
+                </div>
+                <div className="rounded-md bg-muted/60 p-3">
+                  <p className="text-xs text-muted-foreground">Outstanding</p>
+                  <strong>{formatCompactInr(statement.outstanding)}</strong>
+                </div>
+              </div>
+              <Button variant="secondary" size="sm" onClick={downloadConfirmation}>
+                <Download className="size-4" /> Download booking confirmation
+              </Button>
+            </CardContent>
+          </Card>
+          <div className="flex gap-1 border-b border-border">
+            {(["payments", "construction", "documents"] as const).map((tab) => (
+              <button key={tab} type="button" onClick={() => setPortalTab(tab)} className={cn("border-b-2 px-4 py-2.5 text-sm font-medium capitalize", portalTab === tab ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
+                {tab === "construction" ? "Construction status" : tab}
+              </button>
+            ))}
+          </div>
+          {portalTab === "construction" ? (
+            <Card>
+              <CardContent className="space-y-4">
+                <div>
+                  <h2 className="font-semibold">{construction?.project.name ?? "Construction status"}</h2>
+                  {construction?.project.city && <p className="text-sm text-muted-foreground">{construction.project.city}</p>}
+                </div>
+                {!construction || construction.stages.length === 0 ? <p className="text-sm text-muted-foreground">Construction updates are not available yet.</p> : <div className="space-y-3">{construction.stages.map((stage) => <div key={stage._id} className="space-y-1.5"><div className="flex items-center justify-between gap-3 text-sm"><span className="font-medium">{stage.name}</span><span className="font-semibold tabular-nums">{stage.percentComplete}%</span></div><div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(0, Math.min(100, stage.percentComplete))}%` }} /></div>{stage.completedDate ? <p className="text-xs text-muted-foreground">Completed {formatDate(stage.completedDate)}</p> : stage.targetDate ? <p className="text-xs text-muted-foreground">Target {formatDate(stage.targetDate)}</p> : null}</div>)}</div>}
+              </CardContent>
+            </Card>
+          ) : <>
+          <Card>
+            <CardContent>
+              <h2 className="mb-3 font-semibold">Payment schedule</h2>
+              {statement.installments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No installments available.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {statement.installments.map((item) => (
+                    <div
+                      key={item._id}
+                      className="flex justify-between border-b py-2 text-sm"
+                    >
+                      <span>{item.milestone}</span>
+                      <span>
+                        {formatCompactInr(item.amount)} · {item.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="font-semibold">Payment receipts</h2>
+                <span className="text-xs text-muted-foreground">{statement.receipts.length}</span>
+              </div>
+              {statement.receipts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No payment receipts available.</p>
+              ) : (
+                <div className="space-y-2">
+                  {statement.receipts.map((receipt) => (
+                    <div key={receipt._id} className="flex items-center justify-between gap-3 border-b py-2 text-sm last:border-0">
+                      <div>
+                        <p className="font-medium">{formatCompactInr(receipt.amount)} · {PAYMENT_MODE_LABELS[receipt.paymentMode] ?? receipt.paymentMode}</p>
+                        <p className="text-xs text-muted-foreground">{formatDate(receipt.paymentDate)}{receipt.referenceNumber ? ` · Ref: ${receipt.referenceNumber}` : ""}</p>
+                      </div>
+                      <Button variant="ghost" size="icon" onClick={() => downloadPaymentReceipt(receipt._id)} aria-label="Download payment receipt" title="Download receipt">
+                        <Download className="size-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          </>}
+          <Card>
+            <CardContent>
+              <h2 className="mb-3 font-semibold">Documents</h2>
+              {documents.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No documents available.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {documents.map((item) => (
+                    <div
+                      key={item._id}
+                      className="flex items-center justify-between border-b py-2 text-sm"
+                    >
+                      <span>{item.label || item.fileName || "Document"}</span>
+                      {item.statusOnly ? (
+                        <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                          Marked complete
+                        </span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() =>
+                            void downloadDocument(
+                              item._id,
+                              item.fileName || "document",
+                            )
+                          }
+                        >
+                          <Download className="size-4" />
+                          Download
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
@@ -95,11 +363,15 @@ export default function PortalBookingDetailPage() {
       <div className="p-8">
         <ErrorState>
           <ErrorStateHeader>
-            <ErrorStateMedia variant="icon"><AlertTriangleIcon /></ErrorStateMedia>
+            <ErrorStateMedia variant="icon">
+              <AlertTriangleIcon />
+            </ErrorStateMedia>
             <ErrorStateTitle>Booking not found</ErrorStateTitle>
           </ErrorStateHeader>
           <ErrorStateContent>
-            <Button size="sm" asChild><Link to="/portal">Back</Link></Button>
+            <Button size="sm" asChild>
+              <Link to="/portal">Back</Link>
+            </Button>
           </ErrorStateContent>
         </ErrorState>
       </div>
@@ -141,10 +413,18 @@ export default function PortalBookingDetailPage() {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 p-4 md:p-8">
       <PageHeader
-        title={stmt ? `${stmt.unit?.projectName ?? "—"} · ${stmt.unit?.number ?? "—"}` : "Booking"}
+        title={
+          stmt
+            ? `${stmt.unit?.projectName ?? "—"} · ${stmt.unit?.number ?? "—"}`
+            : "Booking"
+        }
         breadcrumbs={[
           { label: "My Bookings", to: "/portal" },
-          { label: stmt ? `${stmt.unit?.projectName ?? "—"} · ${stmt.unit?.number ?? "—"}` : "…" },
+          {
+            label: stmt
+              ? `${stmt.unit?.projectName ?? "—"} · ${stmt.unit?.number ?? "—"}`
+              : "…",
+          },
         ]}
       />
 
@@ -158,7 +438,11 @@ export default function PortalBookingDetailPage() {
         <>
           {/* Meta row */}
           <div className="flex flex-wrap items-center gap-3">
-            <Badge variant={stmt.booking.status === "active" ? "default" : "secondary"}>
+            <Badge
+              variant={
+                stmt.booking.status === "active" ? "default" : "secondary"
+              }
+            >
               {stmt.booking.status === "active" ? "Active" : "Cancelled"}
             </Badge>
             <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -166,7 +450,10 @@ export default function PortalBookingDetailPage() {
               {stmt.buyer?.name ?? "—"}
             </span>
             {(stmt.coBuyers ?? []).map((co) => (
-              <span key={co._id} className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <span
+                key={co._id}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground"
+              >
                 <span className="text-xs">+</span>
                 {co.name}
                 <span className="text-xs">(co-buyer)</span>
@@ -207,9 +494,19 @@ export default function PortalBookingDetailPage() {
                       <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                         {tile.label}
                       </p>
-                      <Icon className={cn("size-4", tile.highlight ? "text-destructive" : "text-primary")} />
+                      <Icon
+                        className={cn(
+                          "size-4",
+                          tile.highlight ? "text-destructive" : "text-primary",
+                        )}
+                      />
                     </div>
-                    <p className={cn("text-2xl font-semibold tabular-nums", tile.highlight && "text-destructive")}>
+                    <p
+                      className={cn(
+                        "text-2xl font-semibold tabular-nums",
+                        tile.highlight && "text-destructive",
+                      )}
+                    >
                       {tile.value}
                     </p>
                   </CardContent>
@@ -226,9 +523,13 @@ export default function PortalBookingDetailPage() {
             {stmt.installments.length === 0 ? (
               <Empty>
                 <EmptyHeader>
-                  <EmptyMedia variant="icon"><Receipt /></EmptyMedia>
+                  <EmptyMedia variant="icon">
+                    <Receipt />
+                  </EmptyMedia>
                   <EmptyTitle>No payment schedule yet</EmptyTitle>
-                  <EmptyDescription>Your developer has not set up a payment plan yet.</EmptyDescription>
+                  <EmptyDescription>
+                    Your developer has not set up a payment plan yet.
+                  </EmptyDescription>
                 </EmptyHeader>
               </Empty>
             ) : (
@@ -244,8 +545,13 @@ export default function PortalBookingDetailPage() {
                   </thead>
                   <tbody>
                     {stmt.installments.map((inst) => (
-                      <tr key={inst._id} className="border-b border-border last:border-0">
-                        <td className="px-4 py-3 font-medium">{inst.milestone}</td>
+                      <tr
+                        key={inst._id}
+                        className="border-b border-border last:border-0"
+                      >
+                        <td className="px-4 py-3 font-medium">
+                          {inst.milestone}
+                        </td>
                         <td className="px-4 py-3 text-muted-foreground tabular-nums">
                           {inst.dueDate ? formatDate(inst.dueDate) : "—"}
                         </td>
@@ -278,7 +584,9 @@ export default function PortalBookingDetailPage() {
             {stmt.receipts.length === 0 ? (
               <Empty>
                 <EmptyHeader>
-                  <EmptyMedia variant="icon"><Receipt /></EmptyMedia>
+                  <EmptyMedia variant="icon">
+                    <Receipt />
+                  </EmptyMedia>
                   <EmptyTitle>No payments recorded yet</EmptyTitle>
                 </EmptyHeader>
               </Empty>
@@ -303,7 +611,9 @@ export default function PortalBookingDetailPage() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">{formatDate(receipt.paymentDate)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(receipt.paymentDate)}
+                      </p>
                     </div>
                     <Button
                       variant="ghost"
@@ -331,10 +641,13 @@ export default function PortalBookingDetailPage() {
             ) : documents.length === 0 ? (
               <Empty>
                 <EmptyHeader>
-                  <EmptyMedia variant="icon"><FolderOpen /></EmptyMedia>
+                  <EmptyMedia variant="icon">
+                    <FolderOpen />
+                  </EmptyMedia>
                   <EmptyTitle>No documents shared yet</EmptyTitle>
                   <EmptyDescription>
-                    Your sale agreement and other documents will appear here once shared.
+                    Your sale agreement and other documents will appear here
+                    once shared.
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
@@ -347,8 +660,12 @@ export default function PortalBookingDetailPage() {
                   >
                     <FileText className="size-5 shrink-0 text-muted-foreground" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{doc.label ?? doc.fileName}</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(doc.uploadedAt)}</p>
+                      <p className="truncate text-sm font-medium">
+                        {doc.label ?? doc.fileName}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(doc.uploadedAt)}
+                      </p>
                     </div>
                     {doc.url && (
                       <Button
@@ -357,7 +674,12 @@ export default function PortalBookingDetailPage() {
                         className="shrink-0"
                         asChild
                       >
-                        <a href={doc.url} download={doc.fileName} target="_blank" rel="noreferrer">
+                        <a
+                          href={doc.url}
+                          download={doc.fileName}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
                           <Download className="size-4" />
                         </a>
                       </Button>

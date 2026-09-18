@@ -3,6 +3,7 @@ import { v } from "convex/values";
 
 export const docTypeValidator = v.union(
   v.literal("sale_agreement"),
+  v.literal("sale_deed"),
   v.literal("possession_letter"),
   v.literal("noc"),
   v.literal("demand_notice"),
