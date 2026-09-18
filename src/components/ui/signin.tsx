@@ -1,12 +1,12 @@
 import { forwardRef, useCallback, useEffect, useState } from "react";
 import { type VariantProps } from "class-variance-authority";
-import { Loader2, LogIn, LogOut } from "lucide-react";
+import { ArrowRight, Loader2, LogIn, LogOut, Mail, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth.ts";
 import { supabaseAuthEnabled } from "@/components/providers/auth.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { buttonVariants } from "@/components/ui/button.tsx";
 
 export interface SignInButtonProps
@@ -142,17 +142,40 @@ export const SignInButton = forwardRef<HTMLButtonElement, SignInButtonProps>(
         {buttonText}
       </Button>
       {supabaseAuthEnabled && <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Sign in to Sravantix</DialogTitle></DialogHeader>
-          <Button variant="secondary" onClick={() => { void activeAuth.signinWithGoogle().catch((error) => toast.error(error instanceof Error ? error.message : "Google sign-in failed")); }}>
-            Continue with Google
-          </Button>
-          <div className="relative py-1 text-center text-xs text-muted-foreground"><span className="bg-background px-2">or use email</span></div>
-          <Input type="email" placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)} autoFocus />
-          <DialogFooter>
-            <Button variant="secondary" onClick={() => setEmailOpen(false)}>Cancel</Button>
-            <Button onClick={() => { if (email.trim()) { void activeAuth.signin(email.trim()); setEmailOpen(false); } }}>Send sign-in link</Button>
-          </DialogFooter>
+        <DialogContent className="overflow-hidden border-border/80 bg-background p-0 shadow-2xl sm:max-w-md">
+          <div className="border-b border-border/70 bg-card px-6 pb-5 pt-7">
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+                <LogIn className="size-5" />
+              </div>
+              <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Secure access
+              </span>
+            </div>
+            <DialogHeader className="gap-2 text-left">
+              <DialogTitle className="text-2xl tracking-tight">Welcome back</DialogTitle>
+              <DialogDescription className="max-w-sm text-sm leading-6">
+                Sign in to manage projects, bookings, collections and documents in one place.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="space-y-5 px-6 py-6">
+            <Button className="h-11 w-full justify-between bg-foreground px-4 text-background hover:bg-foreground/90" onClick={() => { void activeAuth.signinWithGoogle().catch((error) => toast.error(error instanceof Error ? error.message : "Google sign-in failed")); }}>
+              <span className="flex items-center gap-3"><span className="flex size-6 items-center justify-center rounded-full bg-background text-sm font-bold text-[#4285f4]">G</span>Continue with Google</span>
+              <ArrowRight className="size-4" />
+            </Button>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground"><div className="h-px flex-1 bg-border" /><span>or continue with email</span><div className="h-px flex-1 bg-border" /></div>
+            <div className="space-y-2">
+              <label htmlFor="signin-email" className="text-sm font-medium">Work email</label>
+              <Input id="signin-email" type="email" placeholder="name@company.com" value={email} onChange={(event) => setEmail(event.target.value)} autoFocus />
+              <p className="text-xs leading-5 text-muted-foreground">We will send a one-time sign-in link. No password required.</p>
+            </div>
+            <DialogFooter className="sm:justify-between">
+              <Button variant="ghost" onClick={() => setEmailOpen(false)}>Cancel</Button>
+              <Button className="gap-2" onClick={() => { if (email.trim()) { void activeAuth.signin(email.trim()); setEmailOpen(false); } }}><Mail className="size-4" />Send sign-in link</Button>
+            </DialogFooter>
+            <div className="flex items-center justify-center gap-2 border-t border-border/70 pt-4 text-xs text-muted-foreground"><ShieldCheck className="size-3.5 text-primary" />Your account and business data stay protected.</div>
+          </div>
         </DialogContent>
       </Dialog>}
       </>
