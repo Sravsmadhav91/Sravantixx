@@ -143,12 +143,14 @@ export const SignInButton = forwardRef<HTMLButtonElement, SignInButtonProps>(
       </Button>
       {supabaseAuthEnabled && <Dialog open={emailOpen} onOpenChange={setEmailOpen}>
         <DialogContent className="overflow-hidden border-border/80 bg-background p-0 shadow-2xl sm:max-w-md">
-          <div className="border-b border-border/70 bg-card px-6 pb-5 pt-7">
+          <div className="border-b border-emerald-900/10 bg-emerald-50 px-6 pb-5 pt-7 dark:bg-emerald-950/30">
             <div className="mb-6 flex items-start justify-between gap-4">
-              <div className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+              <div className="relative flex size-11 items-center justify-center rounded-xl bg-emerald-700 text-white shadow-sm">
                 <LogIn className="size-5" />
+                <span className="absolute -right-1 -top-1 size-2 rounded-full bg-amber-400" />
+                <span className="absolute -bottom-1 -left-1 size-2 rounded-full bg-sky-400" />
               </div>
-              <span className="rounded-full border border-border bg-background px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <span className="rounded-full border border-amber-300/70 bg-amber-100 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wider text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/50 dark:text-amber-200">
                 Secure access
               </span>
             </div>
@@ -160,8 +162,8 @@ export const SignInButton = forwardRef<HTMLButtonElement, SignInButtonProps>(
             </DialogHeader>
           </div>
           <div className="space-y-5 px-6 py-6">
-            <Button className="h-11 w-full justify-between bg-foreground px-4 text-background hover:bg-foreground/90" onClick={() => { void activeAuth.signinWithGoogle().catch((error) => toast.error(error instanceof Error ? error.message : "Google sign-in failed")); }}>
-              <span className="flex items-center gap-3"><span className="flex size-6 items-center justify-center rounded-full bg-background text-sm font-bold text-[#4285f4]">G</span>Continue with Google</span>
+            <Button variant="outline" className="h-11 w-full justify-between border-slate-300 bg-white px-4 text-slate-800 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:hover:bg-slate-900" onClick={() => { void activeAuth.signinWithGoogle().catch((error) => toast.error(error instanceof Error ? error.message : "Google sign-in failed")); }}>
+              <span className="flex items-center gap-3"><span className="flex size-6 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-bold text-[#4285f4] shadow-sm">G</span>Continue with Google</span>
               <ArrowRight className="size-4" />
             </Button>
             <div className="flex items-center gap-3 text-xs text-muted-foreground"><div className="h-px flex-1 bg-border" /><span>or continue with email</span><div className="h-px flex-1 bg-border" /></div>
