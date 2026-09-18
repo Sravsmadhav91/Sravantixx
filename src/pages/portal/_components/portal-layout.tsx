@@ -1,4 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { Authenticated, AuthLoading, Unauthenticated } from "convex/react";
 import { useQuery } from "convex/react";
 import { LogOut, ScrollText, Wallet } from "lucide-react";
@@ -19,7 +20,7 @@ import {
 import { Lock } from "lucide-react";
 import Logo from "@/components/logo.tsx";
 import { cn } from "@/lib/utils.ts";
-import { migrationApiEnabled } from "@/lib/migration-api.ts";
+import { migrationApiEnabled, migrationPortalGet } from "@/lib/migration-api.ts";
 
 const PORTAL_NAV = [
   { label: "My Bookings", to: "/portal", icon: ScrollText },
@@ -184,6 +185,13 @@ function PortalSignInPrompt() {
 
 function MigrationPortalLayout() {
   const { user, signout, isAuthenticated, isLoading } = useAuth();
+  const [branding, setBranding] = useState<{ name: string; logoUrl?: string } | null>(null);
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    void migrationPortalGet<{ name: string; logoUrl?: string }>("/api/portal/branding")
+      .then(setBranding)
+      .catch(() => setBranding(null));
+  }, [isAuthenticated]);
   if (isLoading) return <div className="flex min-h-screen items-center justify-center"><Skeleton className="h-10 w-48" /></div>;
   if (!isAuthenticated) return <PortalSignInPrompt />;
   const name = user?.profile.name ?? "Buyer";
@@ -191,7 +199,7 @@ function MigrationPortalLayout() {
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-sidebar md:flex">
-        <div className="px-5 py-5"><Logo onDark /></div>
+        <div className="px-5 py-5"><Logo onDark src={branding?.logoUrl} alt={branding?.name ?? "Sravantix Real Estate ERP"} /></div>
         <p className="px-6 text-xs font-medium uppercase tracking-wide text-sidebar-foreground/50">Buyer Portal</p>
         <nav className="flex flex-col gap-1 px-3 pt-3">
           <NavLink to="/portal" end className={({ isActive }) => cn("rounded-md px-3 py-2 text-sm font-medium", isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/75 hover:bg-sidebar-accent/60")}>My Bookings</NavLink>
@@ -203,7 +211,7 @@ function MigrationPortalLayout() {
           <Button variant="ghost" size="icon" aria-label="Sign out" onClick={() => void signout()} className="text-sidebar-foreground/70"><LogOut className="size-4" /></Button>
         </div>
       </aside>
-      <div className="flex min-w-0 flex-1 flex-col"><header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 md:hidden"><Logo /><SignInButton size="sm" variant="secondary" /></header><main className="flex-1 pb-6"><Outlet /></main></div>
+      <div className="flex min-w-0 flex-1 flex-col"><header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 md:hidden"><Logo src={branding?.logoUrl} alt={branding?.name ?? "Sravantix Real Estate ERP"} /><SignInButton size="sm" variant="secondary" /></header><main className="flex-1 pb-6"><Outlet /></main></div>
     </div>
   );
 }
